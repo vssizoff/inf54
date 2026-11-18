@@ -15,7 +15,16 @@ import TermPin from "@/components/termui/TermPin.vue";
 import TermButton from "@/components/termui/TermButton.vue";
 import TermWindow from "@/components/termui/TermWindow.vue";
 import TermInput from "@/components/termui/TermInput.vue";
+import TermSelect from "@/components/termui/TermSelect.vue";
 import {useRouter} from "vue-router";
+import {
+    ATTRIBUTE_FIELDS,
+    attributesToPayload,
+    emptyAttributes,
+    validateAttributes,
+    type AttributeErrors,
+    type AttributeValues
+} from "@/api/attributes.js";
 
 const router = useRouter();
 
@@ -35,6 +44,16 @@ const pending = ref(false);
 const stage = ref(0);
 const stage0Error = ref(0);
 const emailToken = ref<undefined | null | string>(undefined);
+/**
+ * Кастомные поля профиля (школа, класс, учитель, город).
+ *
+ * Состав берётся из @/api/attributes, а не прописан здесь: добавление поля не
+ * должно требовать правки шаблона.
+ */
+const attributes = ref<AttributeValues>(emptyAttributes());
+const attributeErrors = ref<AttributeErrors>({});
+/** Сообщение о сбое на стороне сервера (занятый email, недоступный authentik). */
+const serverError = ref("");
 
 const passwordStrength = computed(() => {
   if (password.value.split("").map(char => char >= 'а' && char <= 'я' || char >= 'А' && char <= 'Я').filter(value => value).length) return -1;
@@ -54,6 +73,11 @@ function checkUsernameLength(setToFalse: boolean) {
 async function submit(event: Event) {
   event.preventDefault();
   checkUsernameLength(true);
+  serverError.value = "";
+  // Атрибуты проверяем здесь же, до запроса: поля одни и те же, и показывать
+  // «заполните школу» после нажатия кнопки дешевле, чем получать 422.
+  attributeErrors.value = validateAttributes(attributes.value);
+  if (Object.keys(attributeErrors.value).length) return;
   if (password.value !== passwordRepeat.value || !isUniqueUsername.value || !isUniqueEmail.value || !isUniqueCodeforcesHandle.value || !isUsernameEnoughLength.value || passwordStrength.value <= 0 || pending.value || !emailToken.value) return;
   pending.value = true;
   let response = await register({
@@ -62,10 +86,32 @@ async function submit(event: Event) {
     firstName: firstName.value,
     lastName: lastName.value,
     emailToken: emailToken.value,
-    codeforcesHandle: codeforcesHandle.value
+    codeforcesHandle: codeforcesHandle.value,
+    attributes: attributesToPayload(attributes.value)
   });
   pending.value = false;
-  if (!response) await router.push("/me");
+  if (response === 0) {
+    await router.push("/me");
+    return;
+  }
+  if (response === 3) {
+    attributeErrors.value = Object.fromEntries(ATTRIBUTE_FIELDS
+      .filter(field => !String(attributes.value[field.key] ?? "").trim())
+      .map(field => [field.key, "Поле обязательно"]));
+    serverError.value = "Проверьте дополнительные поля";
+    return;
+  }
+  if (response === 4) {
+    // Сервис аутентификации временно не принимает учётки: email-код уже израсходован,
+    // поэтому начинаем заполнение заново, но объясняем причину.
+    serverError.value = "Сервис регистрации временно недоступен. Повторите позже.";
+    stage.value = 0;
+    emailToken.value = undefined;
+    return;
+  }
+  if (response === 1) serverError.value = "Имя пользователя занято";
+  else if (response === 2) serverError.value = "Код подтверждения email истёк";
+  else serverError.value = "Не удалось зарегистрироваться, попробуйте позже";
 }
 
 async function submit0() {
@@ -140,6 +186,32 @@ watch(emailConfirm, () => {
           <p class="subtitle">Дополнительная информация</p>
           <TermInput label="root@inf54:~# codeforces:" mLabel="> codeforces:" placeholder="Ник на Codeforces" optional noBreak v-model="codeforcesHandle"/>
           <p class="error" v-if="!isUniqueCodeforcesHandle && codeforcesHandle.length > 0">Не уникально</p>
+          <!-- Кастомные поля сервиса: состав задаёт @/api/attributes -->
+          <template v-for="field in ATTRIBUTE_FIELDS" :key="field.key">
+            <TermSelect
+              v-if="field.kind === 'select'"
+              :label="`root@inf54:~# ${field.key}:`"
+              :mLabel="`> ${field.key}:`"
+              :placeholder="field.placeholder"
+              :optional="!field.required"
+              :options="field.choices ?? []"
+              v-model="attributes[field.key]"/>
+            <TermInput
+              v-else
+              :label="`root@inf54:~# ${field.key}:`"
+              :mLabel="`> ${field.key}:`"
+              :placeholder="field.placeholder"
+              :optional="!field.required"
+              :min="field.min"
+              :max="field.max"
+              :pattern="field.pattern"
+              :int="field.kind === 'number'"
+              noBreak
+              v-model="attributes[field.key]"/>
+            <p class="error" v-if="attributeErrors[field.key]">{{ attributeErrors[field.key] }}</p>
+            <p class="hint" v-else-if="field.hint">{{ field.hint }}</p>
+          </template>
+          <p class="error" v-if="serverError">{{ serverError }}</p>
           <TermButton :disabled="password !== passwordRepeat || !isUniqueUsername || !isUniqueEmail || !isUniqueCodeforcesHandle || !isUsernameEnoughLength
             || passwordStrength <= 0 || firstName.length <= 1 || lastName.length <= 1 || pending" @click="submit">Зарегистрироваться</TermButton>
         </TermWindow>
@@ -163,6 +235,11 @@ p {
 
 .error {
   color: red;
+}
+
+.hint {
+  opacity: 0.7;
+  font-size: 14px;
 }
 
 :global(.dark) {

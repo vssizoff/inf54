@@ -10,3 +10,4 @@ frontend/components.d.ts
 .idea
 backend/dist
 keys
+frontend/dist/*
