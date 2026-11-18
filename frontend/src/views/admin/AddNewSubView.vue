@@ -85,7 +85,6 @@ div {
 
   textarea {
     width: 96%;
-    background: v-bind(bg);
     outline: none !important;
     border-radius: 15px;
     padding: 20px;

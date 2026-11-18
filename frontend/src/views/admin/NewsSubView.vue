@@ -52,11 +52,6 @@ export default defineComponent({
     }, ID => {
       this.news_cur = this.news_cur.filter(({id}) => id !== ID);
     });
-  },
-  computed: {
-    color() {
-      return this.$theme.color;
-    }
   }
 })
 </script>
