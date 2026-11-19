@@ -34,8 +34,9 @@ export default async function () {
             .addColumn("firstName", "varchar(50)", cb => cb.notNull())
             .addColumn("lastName", "varchar(50)", cb => cb.notNull())
             .addColumn("email", "varchar(64)", cb => cb.unique().notNull())
-            .addColumn("passwordHash", "varchar(256)", cb => cb.notNull())
-            .addColumn("isAdmin", "boolean", cb => cb.notNull().defaultTo(false)).execute();
+            .addColumn("passwordHash", "varchar(256)")
+            .addColumn("isAdmin", "boolean", cb => cb.notNull().defaultTo(false))
+            .addColumn("authentikId", "integer", cb => cb.unique()).execute();
     } catch (error) {}
     try {
         await db.schema.createTable("sessions")

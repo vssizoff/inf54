@@ -51,8 +51,7 @@ export async function removeEmailConfirm(token: string) {
     await db.deleteFrom("emailConfirmations").where("token", '=', token).execute();
 }
 
-export async function register({username, codeforcesHandle, firstName, lastName, email, password}: {username: string, codeforcesHandle?: string, firstName: string, lastName: string, email: string, password: string}, useragent: string, app: string) {
-    let passwordHash = await bcrypt.hash(password, 12);
+export async function register({username, codeforcesHandle, firstName, lastName, email, authentikId}: {username: string, codeforcesHandle?: string, firstName: string, lastName: string, email: string, authentikId: number}, useragent: string, app: string) {
     await db.insertInto("users").values({
         username,
         codeforcesHandle,
@@ -60,8 +59,8 @@ export async function register({username, codeforcesHandle, firstName, lastName,
         firstName,
         lastName,
         email: email.toLowerCase(),
-        passwordHash,
-        isAdmin: false
+        isAdmin: false,
+        authentikId
     }).executeTakeFirstOrThrow();
     return signIn(username, password, useragent, app, passwordHash);
 }

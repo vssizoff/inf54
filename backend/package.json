@@ -12,6 +12,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/superagent": "^8.1.11",
     "@types/useragent": "^2.3.4",
     "axios": "1.13.5",
     "backendium": "^0.0.21",
@@ -29,6 +30,7 @@
     "parsium": "^0.1.6",
     "pg": "^8.11.5",
     "randomstring": "^1.3.0",
+    "superagent": "^10.4.2",
     "useragent": "^2.3.0"
   },
   "devDependencies": {

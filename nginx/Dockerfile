@@ -7,9 +7,17 @@ COPY ./frontend .
 RUN npm i
 RUN npm run build
 
+WORKDIR /signIn
+
+COPY ./signInFrontend .
+
+RUN npm i
+RUN npm run build
+
 FROM nginx:1.29.0-alpine3.22 AS server
 
 COPY --from=frontend-builder /app/dist /frontend
+COPY --from=frontend-builder /signIn/dist /signIn
 COPY ./nginx/nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80

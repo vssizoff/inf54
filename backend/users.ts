@@ -22,6 +22,7 @@ import {email, object, optional, string} from "parsium";
 import {checkAuth, checkAuthRetData} from "./authChecker.js";
 import {generateAccessToken, verifyAppToken, verifyRefreshToken} from "./jwt.js";
 import bcrypt from "bcrypt";
+import {createAuthentikUser, setAuthentikPassword} from "./authentik";
 
 const router = buildHandlers({
     get: {
@@ -231,7 +232,9 @@ router.post("/users/register", {
         return;
     }
     await removeEmailConfirm(request.body.emailToken);
-    let token = await register({...request.body, email}, request.headers["user-agent"], "main");
+    const authentikId = (await createAuthentikUser({username: request.body.username, email, name: `${request.body.lastName} ${request.body.lastName}`})).pk;
+    await setAuthentikPassword(authentikId, request.body.password);
+    const token = await register({...request.body, email, authentikId}, request.headers["user-agent"], "main");
     if (!token) {
         response.status(500);
         response.end("");

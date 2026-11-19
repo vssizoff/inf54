@@ -33,9 +33,10 @@ export interface UsersTable {
     codeforcesHandleLowerCase?: string;
     firstName: string;
     lastName: string;
-    passwordHash: string;
+    passwordHash?: string;
     email: string;
     isAdmin: boolean;
+    authentikId?: number;
 }
 
 export interface SessionsTable {

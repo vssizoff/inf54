@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import {onMounted, ref} from "vue";
-import {hasToken, signIn} from "@/api/users.js";
+import {hasToken} from "@/api/users.js";
 import ProgressIndicator from "@/components/ui/progressIndicator.vue";
 import TermBG from "@/components/termui/TermBG.vue";
 import TermButton from "@/components/termui/TermButton.vue";
 import TermInput from "@/components/termui/TermInput.vue";
 import TermWindow from "@/components/termui/TermWindow.vue";
 import {useRouter} from "vue-router";
+import {startLogin, submitLogin} from "@/api/authentik.ts";
 
 const router = useRouter();
 
@@ -21,13 +22,15 @@ onMounted(async () => {
     if (to.startsWith("/")) await router.push(to);
     else window.location.href = to;
   }
+  await startLogin();
 });
 
 async function submit(event: Event) {
   event.preventDefault();
   pending.value = true;
   try {
-    let response = await signIn(username.value, password.value);
+    // let response = await signIn(username.value, password.value);
+    let response = await submitLogin(username.value, password.value);
     if (response) {
       let to = router.currentRoute.value.query.next?.toString() ?? "/me";
       if (to.startsWith("/")) await router.push(to);
@@ -44,11 +47,6 @@ async function submit(event: Event) {
 
 <template>
   <main>
-<!--    <CustomForm>-->
-<!--      <SuiInput maxLength="50" placeholder="Имя пользователя" v-model="username" border="#9297FB"/>-->
-<!--      <SuiInput maxLength="50" placeholder="Пароль" password v-model="password" border="#9297FB"/>-->
-<!--      <span v-if="wrong">Неверное имя пользователя или пароль</span>-->
-<!--    </CustomForm>-->
     <TermWindow class="form" prompt="root@inf54:~# ./login.sh">
       <template #header>
         Добро пожаловать. Вход
