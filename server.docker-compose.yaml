@@ -58,16 +58,6 @@ services:
       MAIL_PASS: ${MAIL_PASS}
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
-      # --- authentik: headless-аутентификация ---------------------------------
-      # Пустой AK_API_TOKEN полностью выключает интеграцию: вход идёт по
-      # локальному bcrypt, как до неё. Включается одной строкой в .env.
-      # AK_URL — внутреннее имя сервиса из compose authentik (alias `authentik`
-      # в сети INF54_NETWORK); наружу для входа не используется вовсе.
-      AK_URL: ${AK_URL:-http://authentik:9000}
-      AK_API_TOKEN: ${AK_API_TOKEN:-}
-      AK_AUTH_FLOW: ${AK_AUTH_FLOW:-inf54-login}
-      AK_USER_PATH: ${AK_USER_PATH:-inf54}
-      AK_TIMEOUT: ${AK_TIMEOUT:-8000}
     volumes:
       - "newsAttachments:/app/newsAttachments"
       - "contestsProblems:/app/contestsProblems"

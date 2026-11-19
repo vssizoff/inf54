@@ -34,15 +34,8 @@ export default async function () {
             .addColumn("firstName", "varchar(50)", cb => cb.notNull())
             .addColumn("lastName", "varchar(50)", cb => cb.notNull())
             .addColumn("email", "varchar(64)", cb => cb.unique().notNull())
-            // nullable: пароль хранится в authentik, локальный хэш — только фолбэк
-            // для случаев, когда authentik недоступен (см. backend/authentik.ts)
-            .addColumn("passwordHash", "varchar(256)")
-            .addColumn("isAdmin", "boolean", cb => cb.notNull().defaultTo(false))
-            // uid пользователя в authentik (стабилен для одного инстанса+юзера)
-            .addColumn("authentikUid", "varchar(64)", cb => cb.unique())
-            // кастомные атрибуты профиля; авторитетная копия лежит в authentik.attributes
-            .addColumn("attributes", "jsonb", cb => cb.notNull().defaultTo("{}"))
-            .execute();
+            .addColumn("passwordHash", "varchar(256)", cb => cb.notNull())
+            .addColumn("isAdmin", "boolean", cb => cb.notNull().defaultTo(false)).execute();
     } catch (error) {}
     try {
         await db.schema.createTable("sessions")
@@ -52,8 +45,7 @@ export default async function () {
             .addColumn("os", "text")
             .addColumn("browser", "text")
             .addColumn("mobile", "boolean")
-            .addColumn("lastRefresh", "timestamp", cb => cb.notNull())
-            .execute();
+            .addColumn("lastRefresh", "timestamp", cb => cb.notNull()).execute();
     } catch (error) {}
     try {
         await db.schema.createTable("contestGroups")
@@ -137,6 +129,61 @@ export default async function () {
             .addColumn("displayName", "varchar(128)", cb => cb.notNull())
             .addColumn("description", "varchar(512)", cb => cb.notNull()).execute();
     } catch (error) {}
+    // try {
+    //     await db.schema.createTable("appMaintainers")
+    //         .addColumn("id", "serial", cb => cb.primaryKey().unique())
+    //         .addColumn("user", "integer", cb => cb.notNull().references("users.id"))
+    //         .addColumn("app", "integer", cb => cb.notNull().references("apps.id")).execute();
+    // } catch (error) {}
+    // try {
+    //     await db.schema.createTable("exposedAppPermissions")
+    //         .addColumn("permission", "text", cb => cb.notNull().primaryKey().unique())
+    //         .addColumn("parent", "text", cb => cb.references("exposedAppPermissions.permission"))
+    //         .addColumn("exposer", "varchar(64)", cb => cb.notNull().references("apps.id"))
+    //         .addColumn("danger", "integer", cb => cb.notNull())
+    //         .addColumn("imgUrl", "varchar(256)", cb => cb.notNull())
+    //         .addColumn("displayName", "varchar(128)", cb => cb.notNull())
+    //         .addColumn("description", "varchar(512)", cb => cb.notNull())
+    //         .addColumn("type", "varchar(7)", cb => cb.notNull())
+    //         .addColumn("defaultValue", "jsonb", cb => cb.notNull())
+    //         .addColumn("fullValue", "jsonb", cb => cb.notNull()).execute();
+    // } catch (error) {}
+    // try {
+    //     await db.schema.createTable("requiredAppPermissions")
+    //         .addColumn("id", "serial", cb => cb.primaryKey().unique())
+    //         .addColumn("permission", "text", cb => cb.notNull().references("exposedAppPermissions.permission"))
+    //         .addColumn("app", "varchar(64)", cb => cb.notNull().references("apps.id"))
+    //         .addColumn("required", "boolean", cb => cb.notNull()).execute();
+    // } catch (error) {}
+    // try {
+    //     await db.schema.createTable("appPermissions")
+    //         .addColumn("id", "serial", cb => cb.primaryKey().unique())
+    //         .addColumn("permission", "text", cb => cb.notNull())
+    //         .addColumn("reference", "text", cb => cb.notNull().references("exposedAppPermissions.permission"))
+    //         .addColumn("app", "varchar(64)", cb => cb.notNull().references("apps.id"))
+    //         .addColumn("value", "jsonb", cb => cb.notNull()).execute();
+    // } catch (error) {}
+    // try {
+    //     await db.schema.createTable("exposedPermissions")
+    //         .addColumn("permission", "text", cb => cb.notNull().primaryKey().unique())
+    //         .addColumn("parent", "text", cb => cb.references("exposedPermissions.permission"))
+    //         .addColumn("exposer", "varchar(64)", cb => cb.notNull().references("apps.id"))
+    //         .addColumn("danger", "integer", cb => cb.notNull())
+    //         .addColumn("imgUrl", "varchar(256)", cb => cb.notNull())
+    //         .addColumn("displayName", "varchar(128)", cb => cb.notNull())
+    //         .addColumn("description", "varchar(512)", cb => cb.notNull())
+    //         .addColumn("type", "varchar(7)", cb => cb.notNull())
+    //         .addColumn("defaultValue", "jsonb", cb => cb.notNull())
+    //         .addColumn("fullValue", "jsonb", cb => cb.notNull()).execute();
+    // } catch (error) {}
+    // try {
+    //     await db.schema.createTable("permissions")
+    //         .addColumn("id", "serial", cb => cb.primaryKey().unique())
+    //         .addColumn("permission", "text", cb => cb.notNull())
+    //         .addColumn("reference", "text", cb => cb.notNull().references("exposedPermissions.permission"))
+    //         .addColumn("user", "integer", cb => cb.notNull().references("users.id"))
+    //         .addColumn("value", "jsonb", cb => cb.notNull()).execute();
+    // } catch (error) {}
     try {
         await db.schema.createTable("events")
             .addColumn("id", "uuid", cb => cb.notNull().defaultTo(sql`gen_random_uuid()`).primaryKey().unique())
@@ -174,30 +221,4 @@ export default async function () {
             .addColumn("datetime", "timestamp", cb => cb.notNull())
             .addColumn("editDatetime", "timestamp", cb => cb.notNull()).execute();
     } catch (error) {}
-
-    // ---- миграция на authentik ------------------------------------------------
-    // Все createTable выше обёрнуты в try/catch, поэтому на живой базе новые
-    // колонки не появятся сами: их надо отдельно досказать. Выражения
-    // idempotent ("if not exists"), блок можно безопасно гонять при каждом старте.
-    //
-    // passwordHash остаётся существующим и становится nullable только для новых
-    // установок; на живой базе колонка и так NOT NULL, но мы намеренно НЕ снимаем
-    // ограничение — существующие строки хранят bcrypt-хэш, который служит фолбэком.
-    // Nullable нужна лишь для пользователей, созданных напрямую в authentik.
-    for (const statement of [
-        `alter table "users" add column if not exists "authentikUid" varchar(64)`,
-        `alter table "users" add column if not exists "attributes" jsonb not null default '{}'::jsonb`,
-        `alter table "users" alter column "passwordHash" drop not null`,
-        // unique-индекс вместо inline-констрейнта: add constraint не поддерживает if not exists
-        `create unique index if not exists "users_authentikUid_unique" on "users" ("authentikUid")`,
-    ]) {
-        try {
-            await sql.raw(statement).execute(db);
-        } catch (error) {
-            // На чистой установке колонка уже создана вместе с таблицей, а на живой
-            // базе drop not null может не пройти, если где-то остались пустые строки.
-            // Роняем старт из-за этого не стоит: пишем в лог и идём дальше.
-            console.warn("setup: migration statement failed:", statement, error);
-        }
-    }
 }

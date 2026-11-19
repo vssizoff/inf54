@@ -34,29 +34,7 @@ export async function emailConfirm(email: string, code: string) {
     return response.data;
 }
 
-/**
- * Зарегистрировать пользователя.
- *
- * Коды возврата:
- *   0  — успех;
- *   1  — username занят;
- *   2  — email-токен недействителен;
- *   3  — кастомные поля отклонены (тело ответа содержит список);
- *   4  — authentik недоступен, повторить позже;
- *   -1 — прочий сбой.
- *
- * Числовые коды, а не исключения, потому что `axios.defaults.validateStatus` в
- * этом проекте всегда возвращает true, и вызывающий код разбирает `status`.
- */
-export async function register(body: {
-    username: string,
-    firstName: string,
-    lastName: string,
-    codeforcesHandle: string,
-    emailToken: string,
-    password: string,
-    attributes: Record<string, string | number>
-}): Promise<number> {
+export async function register(body: {username: string, firstName: string, lastName: string, codeforcesHandle: string, emailToken: string, password: string}) {
     let response = await axios.post<string>(`${SERVER_URL}/users/register`, body);
     if (response.status === 201) {
         return 0;
@@ -65,8 +43,6 @@ export async function register(body: {
         if (response.data === "username") return 1;
         else return 2;
     }
-    if (response.status === 422) return 3;
-    if (response.status === 503) return 4;
     return -1;
 }
 
@@ -80,12 +56,7 @@ export type UserType = {
     codeforcesHandle: string,
     firstName: string,
     lastName: string,
-    isAdmin: boolean,
-    /**
-     * Кастомные поля профиля (школа, класс, учитель…). Приходят только в /me:
-     * публичный профиль их не отдаёт, иначе состав класса стал бы виден всем.
-     */
-    attributes?: Record<string, string | number>
+    isAdmin: boolean
 }
 
 export async function hasToken(): Promise<boolean> {
@@ -132,64 +103,33 @@ export async function isUniqueCodeforcesHandle(codeforcesHandle: string): Promis
     return null;
 }
 
-/**
- * Обновить профиль.
- *
- *   ok          — сохранено у нас и синхронизировано с authentik;
- *   invalid     — кастомные поля отклонены (см. responseErrors);
- *   unavailable — правка лежит в нашей базе, но authentik её не принял:
- *                 повторить, пока сервис не ожил;
- *   error       — прочий сбой.
- *
- * `unavailable` возвращается отдельно, потому что состояние после него
- * неопределённое: username в нашей базе уже изменён, а в authentik — нет, и под
- * новым именем войти пока нельзя. Пользователь должен это знать.
- */
-export async function patchUser(user: Partial<UserType>): Promise<"ok" | "invalid" | "unavailable" | "error"> {
+export async function patchUser(user: Partial<UserType>): Promise<boolean> {
     try {
         return await authWrapper(async () => {
             let response = await axios.patch<void>(`${SERVER_URL}/me`, user, {
                 headers: {Authorization: localStorage.getItem("token")}
             });
             if (response.status === 401) return null;
-            if (response.status === 200) return "ok";
-            if (response.status === 422) return "invalid";
-            if (response.status === 503) return "unavailable";
-            return "error";
-        }) ?? "error";
+            return response.status === 200;
+        }) ?? false;
     }
     catch (error) {
-        return "error";
+        return false;
     }
 }
 
-/**
- * Сменить пароль.
- *
- *   ok          — принято (authentik записал новый, локальное зеркало обновлено);
- *   wrong       — старый пароль не подошёл;
- *   unavailable — authentik лежит: смена временно недоступна, повторите позже;
- *   error       — прочий сбой.
- *
- * Различие нужно не только ради текста: писать новый пароль, когда authentik
- * не принял бы его, нельзя — зеркала разошлись бы, и вход в учётку закрылся бы
- * после починки сервиса.
- */
-export async function patchUserPassword(oldPassword: string, newPassword: string): Promise<"ok" | "wrong" | "unavailable" | "error"> {
+export async function patchUserPassword(oldPassword: string, newPassword: string): Promise<boolean> {
     try {
         return await authWrapper(async () => {
             let response = await axios.patch<void>(`${SERVER_URL}/me/password`, {old: oldPassword, new: newPassword}, {
                 headers: {Authorization: localStorage.getItem("token")}
             });
             if (response.status === 401) return null;
-            if (response.status === 200) return "ok";
-            if (response.status === 418) return "wrong";
-            if (response.status === 503) return "unavailable";
-            return "error";
-        }) ?? "error";
+            return response.status === 200;
+        }) ?? false;
     }
     catch (error) {
-        return "error";
+        return false;
     }
 }
 

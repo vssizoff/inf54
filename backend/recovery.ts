@@ -2,7 +2,7 @@ import {sendRecoveryMail} from "./mail.js";
 import {BackendiumRouter} from "backendium";
 import {email, object, string} from "parsium";
 import cryptoRandomString from "crypto-random-string";
-import {getIdByEmail, resetPassword, signInById} from "./sql/users.sql.js";
+import {getIdByEmail, patchUserPassword, signInById} from "./sql/users.sql.js";
 
 let router = new BackendiumRouter;
 
@@ -24,25 +24,8 @@ router.patch("/recovery/:key", {
         response.end();
         return;
     }
-    if (request.body.password.length < 4) {
-        response.status(400);
-        response.end();
-        return;
-    }
-    const id = urlKeys.get(request.params.key) ?? 0;
-    // Сброс идем через authentik: пароль — его зона ответственности, и новый
-    // должен оказаться там. Локальное зеркало обновляется внутри resetPassword
-    // только после успешной записи в authentik.
-    const result = await resetPassword(id, request.body.password);
-    if (!result.ok) {
-        console.error("recovery: сброс пароля не выполнен", id, result.reason, result.detail);
-        response.status(result.reason === "unavailable" ? 503 : 500);
-        response.end("authentik");
-        return;
-    }
-    // Ключ одноразовый: снятие до выдачи токена исключает повторное использование ссылки.
-    urlKeys.delete(request.params.key);
-    const token = await signInById(id, request.headers["user-agent"], "main");
+    await patchUserPassword(urlKeys.get(request.params.key) ?? 0, request.body.password);
+    const token = await signInById(urlKeys.get(request.params.key) ?? 0, request.headers["user-agent"], "main");
     response.expressResponse.cookie("refreshToken", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',

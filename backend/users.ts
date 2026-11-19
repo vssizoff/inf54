@@ -1,7 +1,6 @@
 import {buildHandlers} from "./legacy.js";
 import {
     adminUsersPatch,
-    changePassword,
     checkUseragent, emailConfirm,
     getAllUsers, getEmailByToken,
     getUserByToken,
@@ -13,16 +12,16 @@ import {
     isUniqueUsername,
     makeAdmin,
     patchUser,
-    pushProfile,
+    patchUserPassword,
     register, registerStart, removeEmailConfirm,
-    signInHeadless,
+    signIn,
     signOut, updateLastRefreshTimestamp
 } from "./sql/users.sql.js";
 import {searchUsers} from "./sql/search.sql.js";
-import {any, email, object, optional, string} from "parsium";
+import {email, object, optional, string} from "parsium";
 import {checkAuth, checkAuthRetData} from "./authChecker.js";
 import {generateAccessToken, verifyAppToken, verifyRefreshToken} from "./jwt.js";
-import {parseAttributes} from "./attributes.js";
+import bcrypt from "bcrypt";
 
 const router = buildHandlers({
     get: {
@@ -33,7 +32,7 @@ const router = buildHandlers({
                 return;
             }
             let {authorization: token} = request.headers;
-            let user = await getUserByToken(token, ["username", "codeforcesHandle", "firstName", "lastName", "isAdmin", "attributes"]);
+            let user = await getUserByToken(token, ["username", "codeforcesHandle", "firstName", "lastName", "isAdmin"]);
             if (!user) {
                 response.status(401);
                 response.end("");
@@ -120,25 +119,8 @@ const router = buildHandlers({
                 response.end("");
                 return;
             }
-            // Атрибуты профиля валидируются целиком до записи: половина полей
-            // в базе и половина в authentik — худший из вариантов рассинхрона.
-            let attributes: Record<string, unknown> | undefined;
-            if ("attributes" in request.body) {
-                const parsed = parseAttributes(request.body.attributes);
-                if (!parsed.ok) {
-                    response.status(422);
-                    response.end("missing" in parsed ? JSON.stringify({missing: parsed.missing}) : JSON.stringify({invalid: parsed.invalid}));
-                    return;
-                }
-                attributes = parsed.attributes;
-            }
             let promises: Array<Promise<any>> = [];
             if (typeof request.body.username === "string") {
-                if (request.body.username.length < 4) {
-                    response.status(400);
-                    response.end("");
-                    return;
-                }
                 promises.push(patchUser(id, {username: request.body.username}));
             }
             if (typeof request.body.codeforcesHandle === "string") {
@@ -150,22 +132,7 @@ const router = buildHandlers({
             if (typeof request.body.lastName === "string") {
                 promises.push(patchUser(id, {lastName: request.body.lastName}));
             }
-            if (attributes !== undefined) {
-                promises.push(patchUser(id, {attributes}));
-            }
             await Promise.all(promises);
-            // Профиль синхронизируем одним запросом после всех локальных правок.
-            // authentik — источник истины для username, и расхождение здесь
-            // означает потерянный вход под новым именем, поэтому неудачу
-            // поднимаем в 503: клиент должен повторить, а не жить с разной
-            // правдой в двух системах.
-            const sync = await pushProfile(id);
-            if (!sync.ok) {
-                console.error("authentik: профиль не синхронизирован", id, sync.detail);
-                response.status(sync.transport ? 503 : 500);
-                response.end("authentik");
-                return;
-            }
             response.end("");
         },
         async "/users"(request, response) {
@@ -236,10 +203,7 @@ router.post("/users/register", {
         firstName: string(),
         lastName: string(),
         emailToken: string(),
-        password: string(),
-        // Состав проверяется в parseAttributes: поля описаны в attributes.ts, и
-        // собирать их форму здесь вторым списком означало бы рассинхрон.
-        attributes: optional(any<Record<string, unknown>>())
+        password: string()
     }),
     headersValidator: object({
         "user-agent": string()
@@ -248,13 +212,6 @@ router.post("/users/register", {
     if (request.body.username.length < 4 || request.body.password.length < 4) {
         response.status(400);
         response.end("");
-        return;
-    }
-    const parsed = parseAttributes(request.body.attributes);
-    if (!parsed.ok) {
-        // 422: форма заполнена неверно, повторить тот же запрос бессмысленно.
-        response.status(422);
-        response.end("missing" in parsed ? JSON.stringify({missing: parsed.missing}) : JSON.stringify({invalid: parsed.invalid}));
         return;
     }
     if (!(await isUniqueUsername(request.body.username))) {
@@ -274,21 +231,10 @@ router.post("/users/register", {
         return;
     }
     await removeEmailConfirm(request.body.emailToken);
-    let token = await register({
-        username: request.body.username,
-        codeforcesHandle: request.body.codeforcesHandle,
-        firstName: request.body.firstName,
-        lastName: request.body.lastName,
-        email,
-        password: request.body.password,
-        attributes: parsed.attributes
-    }, request.headers["user-agent"], "main");
+    let token = await register({...request.body, email}, request.headers["user-agent"], "main");
     if (!token) {
-        // Единственная причина, по которой register возвращает null, — authentik
-        // отверг создание учётки (строка уже откачена, см. sql/users.sql.ts).
-        // 503, а не 500: это отказ внешней системы, и повтор может получиться.
-        response.status(503);
-        response.end("authentik");
+        response.status(500);
+        response.end("");
         return;
     }
     response.status(201);
@@ -310,10 +256,7 @@ router.post("/users/signin", {
         "user-agent": string()
     })
 }, async (request, response) => {
-    // signInHeadless: пароль проверяет authentik своей цепочкой стадий, браузер
-    // пользователя на authentik не уходит. Локальный bcrypt подключается только
-    // когда authentik недоступен (см. backend/authentik.ts).
-    let token = await signInHeadless(request.body.username, request.body.password, request.headers["user-agent"], "main");
+    let token = await signIn(request.body.username, request.body.password, request.headers["user-agent"], "main");
     if (!token) {
         response.status(401);
         response.end("");
@@ -334,40 +277,17 @@ router.patch("/me/password", {
         new: string()
     }),
     async authChecker(request, response) {
-        return checkAuth(request.headers?.authorization, ["id"], response);
+        return checkAuth(request.headers?.authorization, ["passwordHash", "id"], response);
     }
 }, async (request, response) => {
     let {old: oldPassword, new: newPassword} = request.body;
-    let {id} = request.auth;
-    if (newPassword.length < 4) {
-        response.status(400);
-        response.end("");
+    let {id, passwordHash} = request.auth;
+    if (!(await bcrypt.compare(oldPassword, passwordHash))) {
+        response.status(418);
+        response.end();
         return;
     }
-    // Проверка старого пароля и запись нового — внутри, потому что порядок
-    // нерассасываемый: сначала authentik подтверждает старый, потом новый
-    // пишется туда же, и только затем обновляется локальное зеркало.
-    const result = await changePassword(id, oldPassword, newPassword);
-    if (!result.ok) {
-        switch (result.reason) {
-            case "invalid":
-                // Прежний код отвечал 418 — сохраняем, фронт на него настроен.
-                response.status(418);
-                response.end("old");
-                return;
-            case "unavailable":
-                // authentik лежит. Менять пароль нельзя даже локально: зеркала
-                // разойдутся, и после починки сервиса вход в учётку закрылся бы.
-                response.status(503);
-                response.end("authentik");
-                return;
-            default:
-                console.error("authentik: смена пароля отклонена", id, result.detail);
-                response.status(500);
-                response.end("");
-                return;
-        }
-    }
+    await patchUserPassword(id, newPassword);
     response.end();
 });
 

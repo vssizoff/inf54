@@ -33,22 +33,9 @@ export interface UsersTable {
     codeforcesHandleLowerCase?: string;
     firstName: string;
     lastName: string;
-    /**
-     * bcrypt-хэш. null для пользователей, созданных напрямую в authentik:
-     * у них пароль существует только там. Локальный хэш всё равно пишется при
-     * смене пароля через наш UI — он служит фолбэком при недоступности authentik.
-     */
-    passwordHash: string | null;
+    passwordHash: string;
     email: string;
     isAdmin: boolean;
-    /** uid учётки в authentik; null, пока пользователь в authentik не заведён. */
-    authentikUid?: string | null;
-    /**
-     * Кастомные атрибуты профиля (класс, школа, учитель и т.п.).
-     * Авторитетная копия лежит в authentik.attributes, здесь — локальный кэш для
-     * быстрых чтений, чтобы список пользователей не превращался в N обращений к API.
-     */
-    attributes: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
 }
 
 export interface SessionsTable {
