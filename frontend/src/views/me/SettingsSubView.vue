@@ -92,7 +92,7 @@ onMounted(() => setup());
           <p>Сила пароля: {{passwordStrength}}/6</p>
           <TermInput label="root@inf54:~# confirm:" mLabel="> confirm:" placeholder="Повторите новый пароль" password noBreak v-model="newPasswordRepeat"/>
           <p class="error" v-if="newPassword !== newPasswordRepeat">Не совпадает</p>
-          <TermButton @click="patchPassword" :disabled="newPassword !== newPasswordRepeat || passwordStrength <= 0 || oldPassword.length <= 0 || pending">Обновить пароль</TermButton>
+          <TermButton @click="patchPassword" :disabled="newPassword !== newPasswordRepeat || passwordStrength <= 0 || pending">Обновить пароль</TermButton>
         </TermWindow>
       </div>
     </template>

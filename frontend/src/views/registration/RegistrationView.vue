@@ -16,7 +16,7 @@ import TermButton from "@/components/termui/TermButton.vue";
 import TermWindow from "@/components/termui/TermWindow.vue";
 import TermInput from "@/components/termui/TermInput.vue";
 import {useRouter} from "vue-router";
-import {submitLogin} from "@/api/authentik.ts";
+import {signInCleanup, submitLogin} from "@/api/authentik.ts";
 
 const router = useRouter();
 
@@ -88,6 +88,7 @@ async function submit1() {
 
 onMounted(async () => {
   if (await hasToken()) await router.push("/me");
+  await signInCleanup();
 });
 
 watch(username, () => isUniqueUsername_(username.value).then(unique => isUniqueUsername.value = Boolean(unique)));

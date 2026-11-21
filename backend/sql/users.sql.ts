@@ -1,6 +1,5 @@
 import randomstring from "randomstring";
 import {Database, db} from "./index.sql.js";
-import bcrypt from "bcrypt";
 import {SelectExpression} from "kysely";
 import {UpdateObjectExpression} from "kysely/dist/cjs/parser/update-set-parser.js";
 import {verifyAccessToken} from "../jwt.js";
@@ -23,8 +22,8 @@ export async function registerStart(email: string) {
     await db.insertInto("emailConfirmations").values({
         email, code, token, expires: date
     }).executeTakeFirstOrThrow();
-    console.log(email, code);
-    // await sendConfirmationEmail(email, code);
+    // console.log(email, code);
+    await sendConfirmationEmail(email, code);
     return code;
 }
 
@@ -87,10 +86,6 @@ export async function getUserByToken(token: string, select: Array<SelectExpressi
 
 export async function patchUser(id: number, patch: UpdateObjectExpression<Database, "users", "users">) {
     await db.updateTable("users").set(patch).where("id", '=', id).executeTakeFirstOrThrow();
-}
-
-export async function patchUserPassword(id: number, password: string) {
-    await db.updateTable("users").set({passwordHash: await bcrypt.hash(password, 12)}).where("id", '=', id).executeTakeFirstOrThrow();
 }
 
 export async function getCodeforcesHandleUserIdMap(): Promise<{[key: string]: number}> {

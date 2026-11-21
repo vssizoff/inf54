@@ -2,7 +2,9 @@ import {sendRecoveryMail} from "./mail.js";
 import {BackendiumRouter} from "backendium";
 import {email, object, string} from "parsium";
 import cryptoRandomString from "crypto-random-string";
-import {getIdByEmail, patchUserPassword} from "./sql/users.sql.js";
+import {getIdByEmail} from "./sql/users.sql.js";
+import {db} from "./sql/index.sql";
+import {setAuthentikPassword} from "./authentik";
 
 let router = new BackendiumRouter;
 
@@ -24,15 +26,15 @@ router.patch("/recovery/:key", {
         response.end();
         return;
     }
-    await patchUserPassword(urlKeys.get(request.params.key) ?? 0, request.body.password);
-    // const token = await signInById(urlKeys.get(request.params.key) ?? 0, request.headers["user-agent"], "main");
-    // response.expressResponse.cookie("refreshToken", token, {
-    //     httpOnly: true,
-    //     secure: process.env.NODE_ENV === 'production',
-    //     sameSite: "strict",
-    //     path: "/api/refresh-token"
-    // });
-    // @TODO
+    const id = urlKeys.get(request.params.key);
+    if (!id) return;
+    const {authentikId} = await db.selectFrom("users").where("id", "=", id).select("authentikId").executeTakeFirstOrThrow();
+    if (!authentikId) {
+        response.status(500);
+        response.end();
+        return;
+    }
+    await setAuthentikPassword(authentikId, request.body.password);
     response.end();
 });
 

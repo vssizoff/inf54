@@ -7,7 +7,7 @@ import TermButton from "@/components/termui/TermButton.vue";
 import TermInput from "@/components/termui/TermInput.vue";
 import TermWindow from "@/components/termui/TermWindow.vue";
 import {useRouter} from "vue-router";
-import {startLogin, submitLogin} from "@/api/authentik.ts";
+import {signInCleanup, startLogin, submitLogin} from "@/api/authentik.ts";
 
 const router = useRouter();
 
@@ -22,6 +22,7 @@ onMounted(async () => {
     if (to.startsWith("/")) await router.push(to);
     else window.location.href = to;
   }
+  await signInCleanup();
   await startLogin();
 });
 

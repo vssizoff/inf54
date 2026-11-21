@@ -22,7 +22,7 @@ import {checkAuth} from "./authChecker.js";
 import {
     createAuthentikUser,
     exchangeCode,
-    refreshTokens,
+    refreshTokens, revokeToken,
     setAuthentikPassword,
     updateAuthentikProfile
 } from "./authentik";
@@ -325,13 +325,25 @@ router.post("/users/signout", {
     //     return checkAuthRetData(request.headers?.authorization, response);
     // }
 }, async (request, response) => {
-    // await signOut(request.auth.jti); @TODO
+    if (request.expressRequest.cookies.refreshToken) await revokeToken(request.expressRequest.cookies.refreshToken);
     response.expressResponse.clearCookie("refreshToken", {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: "strict",
         path: "/api/refresh-token"
     });
+    response.expressResponse.clearCookie("authentik_csrf");
+    response.expressResponse.clearCookie("authentik_device");
+    response.expressResponse.clearCookie("authentik_session");
+    response.expressResponse.clearCookie("authentik_user_switching");
+    response.end();
+});
+
+router.post("/users/signin/cleanup", {}, async (_, response) => {
+    response.expressResponse.clearCookie("authentik_csrf");
+    response.expressResponse.clearCookie("authentik_device");
+    response.expressResponse.clearCookie("authentik_session");
+    response.expressResponse.clearCookie("authentik_user_switching");
     response.end();
 });
 

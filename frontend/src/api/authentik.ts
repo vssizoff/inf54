@@ -1,4 +1,6 @@
 import {config} from "@/config.ts";
+import axios from "axios";
+import {SERVER_URL} from "@/serverConfig.ts";
 
 const FLOW = "inf54-sign-in";
 const EXECUTOR = `/api/v3/flows/executor/${FLOW}/`;
@@ -45,17 +47,19 @@ async function initiateOidcAfterFlow() {
 }
 
 export async function submitLogin(username: string, password: string): Promise<boolean> {
-    const challenge = await requestExecutor("POST", {
+    await requestExecutor("POST", {
         component: "ak-stage-identification",
         uid_field: username
     });
-    // console.log(challenge);
     const challenge2 = await requestExecutor<{final_redirect?: boolean}>("POST", {
         component: "ak-stage-password",
         password: password
     });
-    // console.log(challenge2, !challenge2.final_redirect);
     if (!challenge2.final_redirect) return false;
     await initiateOidcAfterFlow();
     return true;
+}
+
+export async function signInCleanup() {
+    await axios.post(`${SERVER_URL}/users/signin/cleanup`);
 }
