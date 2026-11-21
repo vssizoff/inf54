@@ -14,7 +14,6 @@ import {
     patchUser,
     patchUserPassword,
     register, registerStart, removeEmailConfirm,
-    signIn,
     signOut, updateLastRefreshTimestamp
 } from "./sql/users.sql.js";
 import {searchUsers} from "./sql/search.sql.js";
@@ -234,45 +233,46 @@ router.post("/users/register", {
     await removeEmailConfirm(request.body.emailToken);
     const authentikId = (await createAuthentikUser({username: request.body.username, email, name: `${request.body.lastName} ${request.body.lastName}`})).pk;
     await setAuthentikPassword(authentikId, request.body.password);
-    const token = await register({...request.body, email, authentikId}, request.headers["user-agent"], "main");
-    if (!token) {
-        response.status(500);
-        response.end("");
-        return;
-    }
+    // const token = await register({...request.body, email, authentikId}, request.headers["user-agent"], "main");
+    // if (!token) {
+    //     response.status(500);
+    //     response.end("");
+    //     return;
+    // }
     response.status(201);
-    response.expressResponse.cookie("refreshToken", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: "strict",
-        path: "/api/refresh-token"
-    });
+    // response.expressResponse.cookie("refreshToken", token, {
+    //     httpOnly: true,
+    //     secure: process.env.NODE_ENV === 'production',
+    //     sameSite: "strict",
+    //     path: "/api/refresh-token"
+    // });
     response.end("ok");
 });
 
-router.post("/users/signin", {
-    bodyValidator: object({
-        username: string(),
-        password: string()
-    }),
-    headersValidator: object({
-        "user-agent": string()
-    })
-}, async (request, response) => {
-    let token = await signIn(request.body.username, request.body.password, request.headers["user-agent"], "main");
-    if (!token) {
-        response.status(401);
-        response.end("");
-        return;
-    }
-    response.expressResponse.cookie("refreshToken", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: "strict",
-        path: "/api/refresh-token"
-    });
-    response.end("ok");
-});
+// router.post("/users/signin", {
+//     bodyValidator: object({
+//         username: string(),
+//         password: string()
+//     }),
+//     headersValidator: object({
+//         "user-agent": string()
+//     })
+// }, async (request, response) => {
+//     // let token = await signIn(request.body.username, request.body.password, request.headers["user-agent"], "main");
+//     // if (!token) {
+//     //     response.status(401);
+//     //     response.end("");
+//     //     return;
+//     // }
+//
+//     response.expressResponse.cookie("refreshToken", token, {
+//         httpOnly: true,
+//         secure: process.env.NODE_ENV === 'production',
+//         sameSite: "strict",
+//         path: "/api/refresh-token"
+//     });
+//     response.end("ok");
+// });
 
 router.patch("/me/password", {
     bodyValidator: object({
@@ -285,12 +285,12 @@ router.patch("/me/password", {
 }, async (request, response) => {
     let {old: oldPassword, new: newPassword} = request.body;
     let {id, passwordHash} = request.auth;
-    if (!(await bcrypt.compare(oldPassword, passwordHash))) {
-        response.status(418);
-        response.end();
-        return;
-    }
-    await patchUserPassword(id, newPassword);
+    // if (!(await bcrypt.compare(oldPassword, passwordHash))) {
+    //     response.status(418);
+    //     response.end();
+    //     return;
+    // }
+    // await patchUserPassword(id, newPassword);
     response.end();
 });
 

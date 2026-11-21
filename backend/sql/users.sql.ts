@@ -62,33 +62,32 @@ export async function register({username, codeforcesHandle, firstName, lastName,
         isAdmin: false,
         authentikId
     }).executeTakeFirstOrThrow();
-    return signIn(username, password, useragent, app, passwordHash);
 }
 
-export async function signInById(id: number, useragentStr: string, app: string): Promise<string | null> {
-    const ua = useragent.parse(useragentStr);
-    const jti = (await db.insertInto("sessions").values({
-        userId: id,
-        device: ua.device.family,
-        os: ua.os.family,
-        browser: ua.family,
-        mobile: isMobile({ua: useragentStr, tablet: true}),
-        lastRefresh: new Date()
-    }).returning(["id"]).executeTakeFirstOrThrow()).id;
-    return generateRefreshToken(id, jti, app);
-}
-
-export async function signIn(username: string, password: string, useragent: string, app: string, passwordHash?: string): Promise<string | null> {
-    let passHash: string;
-    if (passwordHash) passHash = passwordHash;
-    else {
-        let {passwordHash} = await db.selectFrom("users").select("passwordHash").where("username", '=', username).executeTakeFirstOrThrow();
-        passHash = passwordHash;
-    }
-    if (!(await bcrypt.compare(password, passHash))) return null;
-    let {id} = await db.selectFrom("users").select("id").where("username", '=', username).executeTakeFirstOrThrow();
-    return signInById(id, useragent, app);
-}
+// export async function signInById(id: number, useragentStr: string, app: string): Promise<string | null> {
+//     const ua = useragent.parse(useragentStr);
+//     const jti = (await db.insertInto("sessions").values({
+//         userId: id,
+//         device: ua.device.family,
+//         os: ua.os.family,
+//         browser: ua.family,
+//         mobile: isMobile({ua: useragentStr, tablet: true}),
+//         lastRefresh: new Date()
+//     }).returning(["id"]).executeTakeFirstOrThrow()).id;
+//     return generateRefreshToken(id, jti, app);
+// }
+//
+// export async function signIn(username: string, password: string, useragent: string, app: string, passwordHash?: string): Promise<string | null> {
+//     let passHash: string;
+//     if (passwordHash) passHash = passwordHash;
+//     else {
+//         let {passwordHash} = await db.selectFrom("users").select("passwordHash").where("username", '=', username).executeTakeFirstOrThrow();
+//         passHash = passwordHash;
+//     }
+//     if (!(await bcrypt.compare(password, passHash))) return null;
+//     let {id} = await db.selectFrom("users").select("id").where("username", '=', username).executeTakeFirstOrThrow();
+//     return signInById(id, useragent, app);
+// }
 
 export async function isUniqueUsername(username: string): Promise<boolean> {
     return !Boolean(await db.selectFrom("users").where("username", '=', username).select("id").executeTakeFirst());

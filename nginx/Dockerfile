@@ -9,9 +9,12 @@ RUN npm run build
 
 FROM nginx:1.29.0-alpine3.22 AS server
 
+RUN apk add --no-cache gettext
+
 COPY --from=frontend-builder /app/dist /frontend
 COPY ./nginx/nginx.conf /etc/nginx/nginx.conf
 
-EXPOSE 80
+COPY ./nginx/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]

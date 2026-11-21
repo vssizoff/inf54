@@ -31,14 +31,16 @@ async function submit(event: Event) {
   try {
     // let response = await signIn(username.value, password.value);
     let response = await submitLogin(username.value, password.value);
-    if (response) {
-      let to = router.currentRoute.value.query.next?.toString() ?? "/me";
-      if (to.startsWith("/")) await router.push(to);
-      else window.location.href = to;
-    }
-    else wrong.value = true;
+    console.log(response);
+    // if (response) {
+    //   let to = router.currentRoute.value.query.next?.toString() ?? "/me";
+    //   if (to.startsWith("/")) await router.push(to);
+    //   else window.location.href = to;
+    // }
+    if (!response) wrong.value = true;
   }
   catch (error) {
+    console.error(error);
     wrong.value = true;
   }
   pending.value = false;

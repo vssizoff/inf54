@@ -1,7 +1,11 @@
-import superagent from 'superagent'
+import superagent from 'superagent';
 
-const AUTHENTIK_URL = "http://authentik"
-const AUTHENTIK_TOKEN = process.env.AUTHENTIK_TOKEN!
+const AUTHENTIK_URL = "http://authentik";
+const AUTHENTIK_TOKEN = process.env.AUTHENTIK_TOKEN!;
+const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID!;
+const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET!;
+const OIDC_REDIRECT_URI = process.env.OIDC_REDIRECT_URI!;        // https://app.example.com/api/auth/callback
+const OIDC_STATE_SECRET = process.env.OIDC_STATE_SECRET!;
 
 type CreateUserData = {
     username: string
@@ -105,4 +109,81 @@ function mapError(err: unknown, path: string): Error {
     }
     if (err instanceof Error) return err
     return new Error(`authentik ${path} failed: ${String(err)}`)
+}
+
+export type TokenResponse = {
+    access_token: string
+    id_token?: string
+    refresh_token?: string
+    token_type: string
+    expires_in: number
+}
+
+export class OidcError extends Error {
+    constructor(public status: number, public body: any) {
+        super(`OIDC error ${status}: ${JSON.stringify(body)}`)
+    }
+    get code(): string | undefined {
+        return this.body?.error
+    }
+}
+
+function mapError2(err: unknown): Error {
+    const e = err as { response?: { status: number; body: unknown } }
+    if (e?.response) return new OidcError(e.response.status, e.response.body)
+    return err instanceof Error ? err : new Error(String(err))
+}
+
+/** Обмен authorization code на токены (вызывается из /api/auth/callback) */
+export async function exchangeCode(code: string, codeVerifier: string): Promise<TokenResponse> {
+    try {
+        const res = await superagent
+            .post(`${AUTHENTIK_URL}/application/o/token/`)
+            .auth(OIDC_CLIENT_ID, OIDC_CLIENT_SECRET) // client_secret_basic
+            .type('form') // Важно: application/x-www-form-urlencoded
+            .send({
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: OIDC_REDIRECT_URI,
+                code_verifier: codeVerifier,
+            })
+            .timeout({ response: 5000, deadline: 10000 })
+        return res.body as TokenResponse
+    } catch (err) {
+        throw mapError2(err)
+    }
+}
+
+/** Обновление токенов через refresh grant (вызывается из /api/auth/refresh) */
+export async function refreshTokens(refreshToken: string): Promise<TokenResponse> {
+    try {
+        const res = await superagent
+            .post(`${AUTHENTIK_URL}/application/o/token/`)
+            .auth(OIDC_CLIENT_ID, OIDC_CLIENT_SECRET)
+            .type('form')
+            .send({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+                // scope НЕ передаём, чтобы сохранить исходные scopes (включая offline_access)
+            })
+            .timeout({ response: 5000, deadline: 10000 })
+        return res.body as TokenResponse
+    } catch (err) {
+        throw mapError2(err)
+    }
+}
+
+/** Отзыв refresh token при логауте */
+export async function revokeToken(refreshToken: string): Promise<void> {
+    try {
+        await superagent
+            .post(`${AUTHENTIK_URL}/application/o/revoke/`)
+            .auth(OIDC_CLIENT_ID, OIDC_CLIENT_SECRET)
+            .type('form')
+            .send({ token: refreshToken, token_type_hint: 'refresh_token' })
+            .timeout({ response: 3000, deadline: 5000 })
+    } catch (err) {
+        // Best-effort: не ломаем логаут, если authentik недоступен
+        console.warn('Token revocation failed:', mapError2(err).message)
+    }
 }

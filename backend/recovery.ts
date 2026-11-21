@@ -2,7 +2,7 @@ import {sendRecoveryMail} from "./mail.js";
 import {BackendiumRouter} from "backendium";
 import {email, object, string} from "parsium";
 import cryptoRandomString from "crypto-random-string";
-import {getIdByEmail, patchUserPassword, signInById} from "./sql/users.sql.js";
+import {getIdByEmail, patchUserPassword} from "./sql/users.sql.js";
 
 let router = new BackendiumRouter;
 
@@ -25,13 +25,13 @@ router.patch("/recovery/:key", {
         return;
     }
     await patchUserPassword(urlKeys.get(request.params.key) ?? 0, request.body.password);
-    const token = await signInById(urlKeys.get(request.params.key) ?? 0, request.headers["user-agent"], "main");
-    response.expressResponse.cookie("refreshToken", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: "strict",
-        path: "/api/refresh-token"
-    });
+    // const token = await signInById(urlKeys.get(request.params.key) ?? 0, request.headers["user-agent"], "main");
+    // response.expressResponse.cookie("refreshToken", token, {
+    //     httpOnly: true,
+    //     secure: process.env.NODE_ENV === 'production',
+    //     sameSite: "strict",
+    //     path: "/api/refresh-token"
+    // });
     response.end();
 });
 
