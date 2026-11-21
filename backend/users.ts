@@ -21,7 +21,7 @@ import {email, object, optional, string} from "parsium";
 import {checkAuth, checkAuthRetData} from "./authChecker.js";
 import {generateAccessToken, verifyAppToken, verifyRefreshToken} from "./jwt.js";
 import bcrypt from "bcrypt";
-import {createAuthentikUser, setAuthentikPassword} from "./authentik";
+import {createAuthentikUser, exchangeCode, refreshTokens, setAuthentikPassword} from "./authentik";
 
 const router = buildHandlers({
     get: {
@@ -233,46 +233,32 @@ router.post("/users/register", {
     await removeEmailConfirm(request.body.emailToken);
     const authentikId = (await createAuthentikUser({username: request.body.username, email, name: `${request.body.lastName} ${request.body.lastName}`})).pk;
     await setAuthentikPassword(authentikId, request.body.password);
-    // const token = await register({...request.body, email, authentikId}, request.headers["user-agent"], "main");
-    // if (!token) {
-    //     response.status(500);
-    //     response.end("");
-    //     return;
-    // }
     response.status(201);
-    // response.expressResponse.cookie("refreshToken", token, {
-    //     httpOnly: true,
-    //     secure: process.env.NODE_ENV === 'production',
-    //     sameSite: "strict",
-    //     path: "/api/refresh-token"
-    // });
     response.end("ok");
 });
 
-// router.post("/users/signin", {
-//     bodyValidator: object({
-//         username: string(),
-//         password: string()
-//     }),
-//     headersValidator: object({
-//         "user-agent": string()
-//     })
-// }, async (request, response) => {
-//     // let token = await signIn(request.body.username, request.body.password, request.headers["user-agent"], "main");
-//     // if (!token) {
-//     //     response.status(401);
-//     //     response.end("");
-//     //     return;
-//     // }
-//
-//     response.expressResponse.cookie("refreshToken", token, {
-//         httpOnly: true,
-//         secure: process.env.NODE_ENV === 'production',
-//         sameSite: "strict",
-//         path: "/api/refresh-token"
-//     });
-//     response.end("ok");
-// });
+router.post("/users/signin", {
+    bodyValidator: object({
+        code: string()
+    }),
+    headersValidator: object({
+        "user-agent": string()
+    })
+}, async (request, response) => {
+    let token = (await exchangeCode(request.body.code))?.refresh_token;
+    if (!token) {
+        response.status(401);
+        response.end("");
+        return;
+    }
+    response.expressResponse.cookie("refreshToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+        path: "/api/refresh-token"
+    });
+    response.end("ok");
+});
 
 router.patch("/me/password", {
     bodyValidator: object({
@@ -291,6 +277,7 @@ router.patch("/me/password", {
     //     return;
     // }
     // await patchUserPassword(id, newPassword);
+    // @TODO
     response.end();
 });
 
@@ -305,8 +292,8 @@ router.get("/refresh-token", {
         response.end();
         return;
     }
-    const data = await verifyRefreshToken(token);
-    if (!data || !(await checkUseragent(request.headers["user-agent"], data.jti))) {
+    const data = await refreshTokens(token);
+    if (data === null) {
         response.expressResponse.clearCookie("refreshToken", {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -317,8 +304,15 @@ router.get("/refresh-token", {
         response.end();
         return;
     }
-    await updateLastRefreshTimestamp(data.jti);
-    response.end(await generateAccessToken(data.id, data.jti, data.app));
+    if (data.refresh_token) {
+        response.expressResponse.cookie("refreshToken", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: "strict",
+            path: "/api/refresh-token"
+        });
+    }
+    response.end(data.access_token);
 });
 
 router.post("/refresh-token", {

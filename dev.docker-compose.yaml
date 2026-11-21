@@ -60,6 +60,12 @@ services:
       MAIL_PASS: ${MAIL_PASS}
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: development
+      AUTHENTIK_URL: ${AUTHENTIK_URL}
+      AUTHENTIK_TOKEN: ${AUTHENTIK_TOKEN}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI}
+      OIDC_STATE_SECRET: ${OIDC_STATE_SECRET}
     volumes:
       - "newsAttachments:/app/newsAttachments"
       - "contestsProblems:/app/contestsProblems"

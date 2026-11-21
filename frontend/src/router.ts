@@ -53,6 +53,11 @@ const router = createRouter({
       component: () => import("@/views/signIn/SignInView.vue"),
     },
     {
+      path: "/sign-in/callback",
+      name: "signInCallback",
+      component: () => import("@/views/signIn/Callback.vue"),
+    },
+    {
       path: "/oauth/:uuid",
       name: "oauth",
       component: () => import("@/views/oauth/OauthView.vue"),

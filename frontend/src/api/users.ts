@@ -46,8 +46,8 @@ export async function register(body: {username: string, firstName: string, lastN
     return -1;
 }
 
-export async function signIn(username: string, password: string) {
-    let response = await axios.post<string>(`${SERVER_URL}/users/signin`, {username, password});
+export async function signIn(code: string) {
+    let response = await axios.post<string>(`${SERVER_URL}/users/signin`, {code});
     return response.status === 200;
 }
 

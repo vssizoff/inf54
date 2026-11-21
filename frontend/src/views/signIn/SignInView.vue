@@ -29,14 +29,7 @@ async function submit(event: Event) {
   event.preventDefault();
   pending.value = true;
   try {
-    // let response = await signIn(username.value, password.value);
     let response = await submitLogin(username.value, password.value);
-    console.log(response);
-    // if (response) {
-    //   let to = router.currentRoute.value.query.next?.toString() ?? "/me";
-    //   if (to.startsWith("/")) await router.push(to);
-    //   else window.location.href = to;
-    // }
     if (!response) wrong.value = true;
   }
   catch (error) {

@@ -1,6 +1,6 @@
 import superagent from 'superagent';
 
-const AUTHENTIK_URL = "http://authentik";
+const AUTHENTIK_URL = process.env.AUTHENTIK_URL!;
 const AUTHENTIK_TOKEN = process.env.AUTHENTIK_TOKEN!;
 const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID!;
 const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET!;
@@ -135,33 +135,46 @@ function mapError2(err: unknown): Error {
 }
 
 /** Обмен authorization code на токены (вызывается из /api/auth/callback) */
-export async function exchangeCode(code: string, codeVerifier: string): Promise<TokenResponse> {
+export async function exchangeCode(code: string): Promise<TokenResponse | null> {
     try {
         const res = await superagent
             .post(`${AUTHENTIK_URL}/application/o/token/`)
-            .auth(OIDC_CLIENT_ID, OIDC_CLIENT_SECRET) // client_secret_basic
+            .auth(OIDC_CLIENT_ID, OIDC_CLIENT_SECRET)
             .type('form') // Важно: application/x-www-form-urlencoded
             .send({
+                // client_id: OIDC_CLIENT_ID,
+                // client_secret: OIDC_CLIENT_SECRET,
                 grant_type: 'authorization_code',
                 code,
-                redirect_uri: OIDC_REDIRECT_URI,
-                code_verifier: codeVerifier,
+                redirect_uri: OIDC_REDIRECT_URI
             })
             .timeout({ response: 5000, deadline: 10000 })
+        console.log(res.body);
         return res.body as TokenResponse
     } catch (err) {
-        throw mapError2(err)
+        const e = err as { response?: { status: number; body?: { error?: string } } }
+
+        // OAuth2 стандартная ошибка для некорректного, истёкшего или уже использованного code
+        if (e.response?.status === 400 && e.response.body?.error === 'invalid_grant') {
+            return null
+        }
+
+        // throw mapError2(err)
+        console.error(err);
+        return null;
     }
 }
 
 /** Обновление токенов через refresh grant (вызывается из /api/auth/refresh) */
-export async function refreshTokens(refreshToken: string): Promise<TokenResponse> {
+export async function refreshTokens(refreshToken: string): Promise<TokenResponse | null> {
     try {
         const res = await superagent
             .post(`${AUTHENTIK_URL}/application/o/token/`)
             .auth(OIDC_CLIENT_ID, OIDC_CLIENT_SECRET)
             .type('form')
             .send({
+                // client_id: OIDC_CLIENT_ID,
+                // client_secret: OIDC_CLIENT_SECRET,
                 grant_type: 'refresh_token',
                 refresh_token: refreshToken,
                 // scope НЕ передаём, чтобы сохранить исходные scopes (включая offline_access)
@@ -169,7 +182,15 @@ export async function refreshTokens(refreshToken: string): Promise<TokenResponse
             .timeout({ response: 5000, deadline: 10000 })
         return res.body as TokenResponse
     } catch (err) {
-        throw mapError2(err)
+        const e = err as { response?: { status: number; body?: { error?: string } } }
+
+        // OAuth2 стандартная ошибка для некорректного, отозванного или истёкшего refresh_token
+        if (e.response?.status === 400 && e.response.body?.error === 'invalid_grant') {
+            return null
+        }
+
+        console.error(err);
+        return null;
     }
 }
 
