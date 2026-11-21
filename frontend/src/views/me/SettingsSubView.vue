@@ -12,7 +12,6 @@ const router = useRouter();
 const firstName = ref("");
 const lastName = ref("");
 const codeforcesHandle = ref("");
-const oldPassword = ref("");
 const newPassword = ref("");
 const newPasswordRepeat = ref("");
 const correctPassword = ref(true);
@@ -48,7 +47,7 @@ async function patchUser(event: Event) {
 async function patchPassword(event: Event) {
   event.preventDefault();
   pending.value = true;
-  let response = await patchUserPassword(oldPassword.value, newPassword.value);
+  let response = await patchUserPassword(newPassword.value);
   pending.value = false;
   if (response) await router.push("/me");
   else correctPassword.value = false;
@@ -63,10 +62,6 @@ function setup() {
 }
 
 watch(user, () => setup());
-watch(oldPassword, () => {
-  correctPassword.value = true;
-});
-
 onMounted(() => setup());
 </script>
 
@@ -91,7 +86,7 @@ onMounted(() => setup());
             Смена пароля
           </template>
 
-          <TermInput label="root@inf54:~# password:" mLabel="> password:" placeholder="Старый пароль" password noBreak v-model="oldPassword"/>
+<!--          <TermInput label="root@inf54:~# password:" mLabel="> password:" placeholder="Старый пароль" password noBreak v-model="oldPassword"/>-->
           <TermInput label="root@inf54:~# newPassword:" mLabel="> newPassword:" placeholder="Новый пароль" password noBreak v-model="newPassword"/>
           <p class="error" v-if="passwordStrength === -1">Не может содержать русские буквы</p>
           <p>Сила пароля: {{passwordStrength}}/6</p>

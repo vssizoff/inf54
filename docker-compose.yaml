@@ -65,7 +65,6 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI}
-      OIDC_STATE_SECRET: ${OIDC_STATE_SECRET}
     volumes:
       - "newsAttachments:/app/newsAttachments"
       - "contestsProblems:/app/contestsProblems"

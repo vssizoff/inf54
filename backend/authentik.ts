@@ -1,4 +1,5 @@
 import superagent from 'superagent';
+import {db} from "./sql/index.sql";
 
 const AUTHENTIK_URL = process.env.AUTHENTIK_URL!;
 const AUTHENTIK_TOKEN = process.env.AUTHENTIK_TOKEN!;
@@ -204,5 +205,21 @@ export async function revokeToken(refreshToken: string): Promise<void> {
     } catch (err) {
         // Best-effort: не ломаем логаут, если authentik недоступен
         console.warn('Token revocation failed:', mapError2(err).message)
+    }
+}
+
+export async function updateAuthentikProfile(
+    id: number,
+    data: { name?: string; email?: string }
+): Promise<void> {
+    const {authentikId} = await db.selectFrom("users").where("id", "=", id).select("authentikId").executeTakeFirstOrThrow();
+    if (!authentikId) return;
+    try {
+        await superagent
+            .patch(base(`/api/v3/core/users/${authentikId}/`))
+            .set(authHeaders())
+            .send(data)
+    } catch (err) {
+        throw mapError(err, `/api/v3/core/users/${authentikId}/`)
     }
 }

@@ -11,14 +11,21 @@ import {
     isUniqueEmail,
     isUniqueUsername,
     makeAdmin,
-    patchUser, register,
+    patchUser,
+    register,
     registerStart,
     removeEmailConfirm
 } from "./sql/users.sql.js";
 import {searchUsers} from "./sql/search.sql.js";
 import {email, object, optional, string} from "parsium";
 import {checkAuth} from "./authChecker.js";
-import {createAuthentikUser, exchangeCode, refreshTokens, setAuthentikPassword} from "./authentik";
+import {
+    createAuthentikUser,
+    exchangeCode,
+    refreshTokens,
+    setAuthentikPassword,
+    updateAuthentikProfile
+} from "./authentik";
 import {verifyAccessToken} from "./jwt";
 
 const router = buildHandlers({
@@ -129,6 +136,9 @@ const router = buildHandlers({
             }
             if (typeof request.body.lastName === "string") {
                 promises.push(patchUser(id, {lastName: request.body.lastName}));
+            }
+            if (typeof request.body.firstName === "string" || typeof request.body.lastName === "string") {
+                promises.push(updateAuthentikProfile(id, {name: `${request.body.lastName} ${request.body.firstName}`}));
             }
             await Promise.all(promises);
             response.end("");
@@ -261,22 +271,15 @@ router.post("/users/signin", {
 
 router.patch("/me/password", {
     bodyValidator: object({
-        old: string(),
+        // old: string(),
         new: string()
     }),
     async authChecker(request, response) {
-        return checkAuth(request.headers?.authorization, ["passwordHash", "id"], response);
+        return checkAuth(request.headers?.authorization, ["id", "authentikId"], response);
     }
 }, async (request, response) => {
-    let {old: oldPassword, new: newPassword} = request.body;
-    let {id, passwordHash} = request.auth;
-    // if (!(await bcrypt.compare(oldPassword, passwordHash))) {
-    //     response.status(418);
-    //     response.end();
-    //     return;
-    // }
-    // await patchUserPassword(id, newPassword);
-    // @TODO
+    if (!request.auth.authentikId) return;
+    await setAuthentikPassword(request.auth.authentikId, request.body.new);
     response.end();
 });
 

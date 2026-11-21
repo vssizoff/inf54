@@ -118,10 +118,10 @@ export async function patchUser(user: Partial<UserType>): Promise<boolean> {
     }
 }
 
-export async function patchUserPassword(oldPassword: string, newPassword: string): Promise<boolean> {
+export async function patchUserPassword(newPassword: string): Promise<boolean> {
     try {
         return await authWrapper(async () => {
-            let response = await axios.patch<void>(`${SERVER_URL}/me/password`, {old: oldPassword, new: newPassword}, {
+            let response = await axios.patch<void>(`${SERVER_URL}/me/password`, {new: newPassword}, {
                 headers: {Authorization: localStorage.getItem("token")}
             });
             if (response.status === 401) return null;
