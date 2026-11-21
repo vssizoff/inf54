@@ -47,6 +47,8 @@ async function initiateOidcAfterFlow() {
 }
 
 export async function submitLogin(username: string, password: string): Promise<boolean> {
+    const response = await axios.post(`${SERVER_URL}/users/signin/migrate`, {username, password});
+    if (response.status !== 200) return false;
     await requestExecutor("POST", {
         component: "ak-stage-identification",
         uid_field: username

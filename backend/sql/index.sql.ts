@@ -33,7 +33,7 @@ export interface UsersTable {
     codeforcesHandleLowerCase?: string;
     firstName: string;
     lastName: string;
-    passwordHash?: string;
+    passwordHash?: string | null;
     email: string;
     isAdmin: boolean;
     authentikId?: number;

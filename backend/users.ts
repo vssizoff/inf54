@@ -27,6 +27,8 @@ import {
     updateAuthentikProfile
 } from "./authentik";
 import {verifyAccessToken} from "./jwt";
+import {db} from "./sql/index.sql";
+import bcrypt from "bcrypt";
 
 const router = buildHandlers({
     get: {
@@ -344,6 +346,34 @@ router.post("/users/signin/cleanup", {}, async (_, response) => {
     response.expressResponse.clearCookie("authentik_device");
     response.expressResponse.clearCookie("authentik_session");
     response.expressResponse.clearCookie("authentik_user_switching");
+    response.end();
+});
+
+router.post("/users/signin/migrate", {
+    bodyValidator: object({
+        username: string(),
+        password: string()
+    })
+}, async (request, response) => {
+    const user = await db.selectFrom("users").where("username", "=", request.body.username).select(["id", "authentikId", "passwordHash", "email", "firstName", "lastName"]).executeTakeFirst();
+    if (!user) {
+        response.status(404);
+        response.end();
+        return;
+    }
+    if (user.authentikId) {
+        response.end();
+        return;
+    }
+    if (!user.passwordHash) return;
+    if (!(await bcrypt.compare(request.body.password, user.passwordHash))) {
+        response.status(401);
+        response.end();
+        return;
+    }
+    const authentikId = (await createAuthentikUser({username: request.body.username, email: user.email, name: `${user.lastName} ${user.lastName}`})).pk;
+    await setAuthentikPassword(authentikId, request.body.password);
+    await db.updateTable("users").where("username", "=", request.body.username).set({passwordHash: null, authentikId}).execute();
     response.end();
 });
 
