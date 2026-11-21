@@ -3,9 +3,7 @@ import {Database, db} from "./index.sql.js";
 import bcrypt from "bcrypt";
 import {SelectExpression} from "kysely";
 import {UpdateObjectExpression} from "kysely/dist/cjs/parser/update-set-parser.js";
-import {generateRefreshToken, verifyAccessToken} from "../jwt.js";
-import useragent from "useragent";
-import isMobile from "is-mobile";
+import {verifyAccessToken} from "../jwt.js";
 import {sendConfirmationEmail} from "../mail";
 import cryptoRandomString from 'crypto-random-string';
 
@@ -25,7 +23,8 @@ export async function registerStart(email: string) {
     await db.insertInto("emailConfirmations").values({
         email, code, token, expires: date
     }).executeTakeFirstOrThrow();
-    await sendConfirmationEmail(email, code);
+    console.log(email, code);
+    // await sendConfirmationEmail(email, code);
     return code;
 }
 
@@ -51,7 +50,7 @@ export async function removeEmailConfirm(token: string) {
     await db.deleteFrom("emailConfirmations").where("token", '=', token).execute();
 }
 
-export async function register({username, codeforcesHandle, firstName, lastName, email, authentikId}: {username: string, codeforcesHandle?: string, firstName: string, lastName: string, email: string, authentikId: number}, useragent: string, app: string) {
+export async function register({username, codeforcesHandle, firstName, lastName, email, authentikId}: {username: string, codeforcesHandle?: string, firstName: string, lastName: string, email: string, authentikId: number}) {
     await db.insertInto("users").values({
         username,
         codeforcesHandle,
@@ -63,31 +62,6 @@ export async function register({username, codeforcesHandle, firstName, lastName,
         authentikId
     }).executeTakeFirstOrThrow();
 }
-
-// export async function signInById(id: number, useragentStr: string, app: string): Promise<string | null> {
-//     const ua = useragent.parse(useragentStr);
-//     const jti = (await db.insertInto("sessions").values({
-//         userId: id,
-//         device: ua.device.family,
-//         os: ua.os.family,
-//         browser: ua.family,
-//         mobile: isMobile({ua: useragentStr, tablet: true}),
-//         lastRefresh: new Date()
-//     }).returning(["id"]).executeTakeFirstOrThrow()).id;
-//     return generateRefreshToken(id, jti, app);
-// }
-//
-// export async function signIn(username: string, password: string, useragent: string, app: string, passwordHash?: string): Promise<string | null> {
-//     let passHash: string;
-//     if (passwordHash) passHash = passwordHash;
-//     else {
-//         let {passwordHash} = await db.selectFrom("users").select("passwordHash").where("username", '=', username).executeTakeFirstOrThrow();
-//         passHash = passwordHash;
-//     }
-//     if (!(await bcrypt.compare(password, passHash))) return null;
-//     let {id} = await db.selectFrom("users").select("id").where("username", '=', username).executeTakeFirstOrThrow();
-//     return signInById(id, useragent, app);
-// }
 
 export async function isUniqueUsername(username: string): Promise<boolean> {
     return !Boolean(await db.selectFrom("users").where("username", '=', username).select("id").executeTakeFirst());
@@ -105,17 +79,8 @@ export async function getUserByUsername(username: string, select: Array<SelectEx
     return db.selectFrom("users").where("username", '=', String(username)).select(select).executeTakeFirst();
 }
 
-export async function getUserIdByToken(token: string): Promise<number | null> {
-    // let sessions = await db.selectFrom("sessions").where("token", '=', token).select("userId").execute();
-    // if (!sessions.length) return null;
-    // return sessions[0].userId;
-    let data = await verifyAccessToken(token);
-    if (!data) return null;
-    return data.id;
-}
-
 export async function getUserByToken(token: string, select: Array<SelectExpression<Database, "users">> = ["id", "username", "codeforcesHandle", "firstName", "lastName", "isAdmin"]) {
-    let id = await getUserIdByToken(token);
+    let id = await verifyAccessToken(token);
     if (!id) return null;
     return db.selectFrom("users").where("id", '=', id).select(select).executeTakeFirstOrThrow();
 }
@@ -126,10 +91,6 @@ export async function patchUser(id: number, patch: UpdateObjectExpression<Databa
 
 export async function patchUserPassword(id: number, password: string) {
     await db.updateTable("users").set({passwordHash: await bcrypt.hash(password, 12)}).where("id", '=', id).executeTakeFirstOrThrow();
-}
-
-export async function signOut(jti: number) {
-    await db.deleteFrom("sessions").where("id", '=', jti).execute();
 }
 
 export async function getCodeforcesHandleUserIdMap(): Promise<{[key: string]: number}> {
@@ -163,7 +124,7 @@ export async function adminUsersPatch(data: Array<{id: number, codeforcesHandle?
 }
 
 export async function isAdmin(token: string): Promise<boolean> {
-    let userId = await getUserIdByToken(token);
+    let userId = await verifyAccessToken(token);
     if (!userId) return false;
     let isAdmin = await db.selectFrom("users").where("id", '=', userId).select(["isAdmin"]).executeTakeFirstOrThrow();
     return isAdmin.isAdmin;
@@ -171,27 +132,4 @@ export async function isAdmin(token: string): Promise<boolean> {
 
 export async function makeAdmin(id: number) {
     await db.updateTable("users").where("id", '=', id).set({isAdmin: true}).execute();
-}
-
-export async function checkUseragent(useragentStr: string, jti: number) {
-    // const data = await db.selectFrom("sessions")
-    //     .where("id", '=', jti)
-    //     .select(["device", "os", "browser", "mobile"])
-    //     .executeTakeFirstOrThrow();
-    // const ua = useragent.parse(useragentStr);
-    // const current = {
-    //     device: ua.device.family,
-    //     os: ua.os.family,
-    //     browser: ua.family,
-    //     mobile: isMobile({ua: useragentStr, tablet: true})
-    // } as const;
-    // for (const key in current) {
-    //     // @ts-ignore
-    //     if (data[key] !== current[key]) return false;
-    // }
-    return true;
-}
-
-export async function updateLastRefreshTimestamp(jti: number) {
-    await db.updateTable("sessions").where("id", '=', jti).set({lastRefresh: new Date()}).execute();
 }

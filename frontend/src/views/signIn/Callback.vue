@@ -13,7 +13,9 @@ onMounted(async () => {
 
   if (!code || savedState !== state) return router.push("/sign-in");
 
-  await signIn(code);
+  if (await signIn(code)) return router.push("/me");
+
+  return router.push("/sign-in");
 });
 </script>
 

@@ -1,6 +1,6 @@
 import {SelectExpression} from "kysely";
 import {Database} from "./sql/index.sql.js";
-import {getUserByToken, getUserIdByToken} from "./sql/users.sql.js";
+import {getUserByToken} from "./sql/users.sql.js";
 import type BackendiumResponse from "backendium/dist/response.js";
 import {verifyAccessToken} from "./jwt.js";
 
@@ -25,26 +25,11 @@ export async function checkAuthRetID(token: any, response: BackendiumResponse) {
         response.end("");
         return null;
     }
-    let user = await getUserIdByToken(token);
+    let user = await verifyAccessToken(token);
     if (!user) {
         response.status(401);
         response.end("");
         return null;
     }
     return user;
-}
-
-export async function checkAuthRetData(token: any, response: BackendiumResponse) {
-    if (typeof token !== "string") {
-        response.status(401);
-        response.end("");
-        return null;
-    }
-    let data = await verifyAccessToken(token);
-    if (data === false) {
-        response.status(401);
-        response.end("");
-        return null;
-    }
-    return data;
 }

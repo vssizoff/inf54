@@ -37,16 +37,7 @@ export interface UsersTable {
     email: string;
     isAdmin: boolean;
     authentikId?: number;
-}
-
-export interface SessionsTable {
-    id: Generated<number>;
-    userId: number;
-    device?: string;
-    os?: string;
-    browser?: string;
-    mobile?: boolean;
-    lastRefresh: ColumnType<Date, Date | string, Date | string>;
+    authentikSub?: string;
 }
 
 export interface ContestGroupsTable {
@@ -231,7 +222,6 @@ export interface Database {
     newsImages: NewsImagesTable;
     emailConfirmations: EmailConfirmationTable;
     users: UsersTable;
-    sessions: SessionsTable;
     contestGroups: ContestGroupsTable;
     contests: ContestsTable;
     officialResults: OfficialResultsTable;

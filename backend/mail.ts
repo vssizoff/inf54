@@ -3,12 +3,17 @@ import {string} from "checkeasy";
 
 export const mailer = createTransport({
     host: process.env.MAIL_HOST,
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS
     },
+    connectionTimeout: 10000,  // 10 сек на установку TCP
+    greetingTimeout: 10000,    // 10 сек на приветствие сервера
+    socketTimeout: 30000,      // 30 сек на операции
+    logger: true,   // включить логирование
+    debug: true
 });
 
 export async function sendConfirmationEmail(to: string, code: string) {

@@ -1,18 +1,17 @@
 import {BackendiumRouter} from "backendium";
 import {array, boolean, file, int, object, optional, ParsingError, string, uuid} from "parsium";
-import {checkAuthRetData} from "./authChecker.js";
-import {JwtAccessPayload} from "./jwt.js";
+import {checkAuthRetID} from "./authChecker.js";
 import {getUserById, getUserIdByUsername} from "./sql/users.sql.js";
 import {putImage} from "./minio/events.js";
 import {Readable} from "node:stream"
 import {db} from "./sql/index.sql.js";
 import {checkAccess, getUserEvents} from "./sql/events.sql.js";
 import {sendEventConfirmEmail} from "./mail.js";
-import {formFieldsValidator, generateValidator, datetime} from "./parsers.js";
+import {datetime, formFieldsValidator, generateValidator} from "./parsers.js";
 
-const router = new BackendiumRouter<JwtAccessPayload>();
+const router = new BackendiumRouter<number>();
 router.setAuth(async (request, response) => {
-    return checkAuthRetData(request.headers?.authorization, response);
+    return checkAuthRetID(request.headers?.authorization, response);
 });
 
 router.post("/", {
@@ -34,7 +33,7 @@ router.post("/", {
     }, {ignoreUnknown: false}),
     auth: true
 }, async (request, response) => {
-    const user = await getUserById(request.globalAuth.id, ["id", "isAdmin"]);
+    const user = await getUserById(request.globalAuth, ["id", "isAdmin"]);
     if (!user) return;
     if (!user.isAdmin) {
         response.status(403);
@@ -77,7 +76,7 @@ router.patch("/:id", {
     }),
     auth: true
 }, async (request, response) => {
-    if (!(await checkAccess(request.params.id, request.globalAuth.id))) {
+    if (!(await checkAccess(request.params.id, request.globalAuth))) {
         response.status(403);
         response.end();
         return;
@@ -101,7 +100,7 @@ router.patch("/:id/admins", {
     }),
     auth: true
 }, async (request, response) => {
-    if (!(await checkAccess(request.params.id, request.globalAuth.id))) {
+    if (!(await checkAccess(request.params.id, request.globalAuth))) {
         response.status(403);
         response.end();
         return;
@@ -130,12 +129,12 @@ router.patch("/:id/admins", {
 
 router.get("/", {auth: true}, async (request, response) => {
     response.expressResponse.set("content-type", "application/json");
-    response.end(await getUserEvents(request.globalAuth.id));
-    console.log(await getUserEvents(request.globalAuth.id));
+    response.end(await getUserEvents(request.globalAuth));
+    console.log(await getUserEvents(request.globalAuth));
 });
 
 router.get("/list-all", {auth: true}, async (request, response) => {
-    const user = await getUserById(request.globalAuth.id, ["id", "isAdmin"]);
+    const user = await getUserById(request.globalAuth, ["id", "isAdmin"]);
     if (!user) return;
     if (!user.isAdmin) {
         response.status(403);
@@ -203,11 +202,11 @@ router.post("/:id", {
         const formFields = generateValidator(event.formFields)(request.body, "response");
 
         if (event.account) {
-            const auth = await checkAuthRetData(request.expressRequest.headers?.authorization, response);
+            const auth = await checkAuthRetID(request.expressRequest.headers?.authorization, response);
             if (!auth) return;
             if (
                 (await db.selectFrom("eventParticipants")
-                    .where(({eb, and}) => and([eb("event", '=', request.params.id), eb("user", '=', auth.id)]))
+                    .where(({eb, and}) => and([eb("event", '=', request.params.id), eb("user", '=', auth)]))
                     .execute()
                 ).length > 0
             ) {
@@ -216,7 +215,7 @@ router.post("/:id", {
                 return;
             }
             await db.insertInto("eventParticipants").values({
-                user: auth.id,
+                user: auth,
                 event: request.params.id,
                 formFields,
                 originalFormFields: request.body,
@@ -228,11 +227,11 @@ router.post("/:id", {
         else {
             let auth = undefined;
             if ("authorization" in request.expressRequest.headers) {
-                auth = await checkAuthRetData(request.expressRequest.headers?.authorization, response);
+                auth = await checkAuthRetID(request.expressRequest.headers?.authorization, response);
                 if (!auth) return;
             }
             await db.insertInto("eventParticipants").values({
-                user: auth?.id,
+                user: auth,
                 event: request.params.id,
                 formFields,
                 originalFormFields: request.body,
@@ -268,7 +267,7 @@ router.get("/:id/responses", {
     }),
     auth: true
 }, async (request, response) => {
-    if (!(await checkAccess(request.params.id, request.globalAuth.id))) {
+    if (!(await checkAccess(request.params.id, request.globalAuth))) {
         response.status(403);
         response.end();
         return;
@@ -289,7 +288,7 @@ router.get("/:id/my-responses", {
     response.expressResponse.set("content-type", "application/json");
     response.end(
         await db.selectFrom("eventParticipants")
-            .where(({and, eb}) => and([eb("event", '=', request.params.id), eb("user", '=', request.globalAuth.id)]))
+            .where(({and, eb}) => and([eb("event", '=', request.params.id), eb("user", '=', request.globalAuth)]))
             .selectAll().orderBy("editDatetime", "desc").execute()
     );
 });
@@ -306,7 +305,7 @@ router.patch("/:id/responses/status", {
     }),
     auth: true
 }, async (request, response) => {
-    if (!(await checkAccess(request.params.id, request.globalAuth.id))) {
+    if (!(await checkAccess(request.params.id, request.globalAuth))) {
         response.status(403);
         response.end();
         return;
@@ -343,7 +342,7 @@ router.patch("/:id/response/:rid", {
     }
     const event = await db.selectFrom("events").where("id", '=', eventRow.event)
         .select(["formFields"]).executeTakeFirstOrThrow();
-    if (eventRow.user != request.globalAuth.id && !(await checkAccess(request.params.id, request.globalAuth.id))) {
+    if (eventRow.user != request.globalAuth && !(await checkAccess(request.params.id, request.globalAuth))) {
         response.status(403);
         response.end();
         return;
@@ -379,7 +378,7 @@ router.get("/:id/response/:rid", {
         response.end();
         return;
     }
-    if (eventRow.user != request.globalAuth.id && !(await checkAccess(request.params.id, request.globalAuth.id))) {
+    if (eventRow.user != request.globalAuth && !(await checkAccess(request.params.id, request.globalAuth))) {
         response.status(403);
         response.end();
         return;

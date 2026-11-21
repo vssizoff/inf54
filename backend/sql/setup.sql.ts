@@ -36,17 +36,8 @@ export default async function () {
             .addColumn("email", "varchar(64)", cb => cb.unique().notNull())
             .addColumn("passwordHash", "varchar(256)")
             .addColumn("isAdmin", "boolean", cb => cb.notNull().defaultTo(false))
-            .addColumn("authentikId", "integer", cb => cb.unique()).execute();
-    } catch (error) {}
-    try {
-        await db.schema.createTable("sessions")
-            .addColumn("id", "serial", cb => cb.primaryKey().unique())
-            .addColumn("userId", "integer", cb => cb.notNull().references("users.id"))
-            .addColumn("device", "text")
-            .addColumn("os", "text")
-            .addColumn("browser", "text")
-            .addColumn("mobile", "boolean")
-            .addColumn("lastRefresh", "timestamp", cb => cb.notNull()).execute();
+            .addColumn("authentikId", "integer", cb => cb.unique())
+            .addColumn("authentikSub", "varchar(256)", cb => cb.unique()).execute();
     } catch (error) {}
     try {
         await db.schema.createTable("contestGroups")

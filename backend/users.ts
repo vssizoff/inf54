@@ -1,27 +1,25 @@
 import {buildHandlers} from "./legacy.js";
 import {
     adminUsersPatch,
-    checkUseragent, emailConfirm,
-    getAllUsers, getEmailByToken,
+    emailConfirm,
+    getAllUsers,
+    getEmailByToken,
     getUserByToken,
     getUserByUsername,
-    getUserIdByToken,
     isAdmin,
     isUniqueCodeforcesHandle,
     isUniqueEmail,
     isUniqueUsername,
     makeAdmin,
-    patchUser,
-    patchUserPassword,
-    register, registerStart, removeEmailConfirm,
-    signOut, updateLastRefreshTimestamp
+    patchUser, register,
+    registerStart,
+    removeEmailConfirm
 } from "./sql/users.sql.js";
 import {searchUsers} from "./sql/search.sql.js";
 import {email, object, optional, string} from "parsium";
-import {checkAuth, checkAuthRetData} from "./authChecker.js";
-import {generateAccessToken, verifyAppToken, verifyRefreshToken} from "./jwt.js";
-import bcrypt from "bcrypt";
+import {checkAuth} from "./authChecker.js";
 import {createAuthentikUser, exchangeCode, refreshTokens, setAuthentikPassword} from "./authentik";
+import {verifyAccessToken} from "./jwt";
 
 const router = buildHandlers({
     get: {
@@ -113,7 +111,7 @@ const router = buildHandlers({
                 return;
             }
             let {authorization: token} = request.headers;
-            let id = await getUserIdByToken(token);
+            let id = await verifyAccessToken(token);
             if (!id) {
                 response.status(401);
                 response.end("");
@@ -233,6 +231,7 @@ router.post("/users/register", {
     await removeEmailConfirm(request.body.emailToken);
     const authentikId = (await createAuthentikUser({username: request.body.username, email, name: `${request.body.lastName} ${request.body.lastName}`})).pk;
     await setAuthentikPassword(authentikId, request.body.password);
+    await register({...request.body, email, authentikId});
     response.status(201);
     response.end("ok");
 });
@@ -315,42 +314,15 @@ router.get("/refresh-token", {
     response.end(data.access_token);
 });
 
-router.post("/refresh-token", {
-    bodyValidator: string(),
-    headersValidator: object({
-        "user-agent": string(),
-        authorization: optional(string())
-    })
-}, async (request, response) => {
-    const data = await verifyRefreshToken(request.body);
-    if (!data || !(await checkUseragent(request.headers["user-agent"], data.jti))) {
-        response.status(401);
-        response.end();
-        return;
-    }
-    let app = "main";
-    if ("authorization" in request.headers) {
-        const data = await verifyAppToken(request.headers.authorization);
-        if (data === false) {
-            response.status(418);
-            response.end();
-            return;
-        }
-        app = data.app;
-    }
-    await updateLastRefreshTimestamp(data.jti);
-    response.end(await generateAccessToken(data.id, data.jti, app));
-});
-
 router.post("/users/signout", {
     headersValidator: object({
         "user-agent": string()
     }),
-    async authChecker(request, response) {
-        return checkAuthRetData(request.headers?.authorization, response);
-    }
+    // async authChecker(request, response) {
+    //     return checkAuthRetData(request.headers?.authorization, response);
+    // }
 }, async (request, response) => {
-    await signOut(request.auth.jti);
+    // await signOut(request.auth.jti); @TODO
     response.expressResponse.clearCookie("refreshToken", {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',

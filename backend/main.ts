@@ -6,7 +6,6 @@ import recovery from "./recovery.js";
 import articles from "./articles.js";
 import Backendium from "backendium";
 import cookieParser from "cookie-parser";
-import apps from "./apps.js";
 import events from "./events.js";
 import {initMinio} from "./minio/index.js";
 // import {setupGroupStandingsUpdater} from "./codeforces.js";
@@ -46,7 +45,6 @@ async function main() {
     app.router(standings);
     app.router(recovery);
     app.router(articles, "/articles");
-    app.router(apps, "/apps")
     app.router(events, "/events")
 
     app.get("/teapot", {}, (request, response) => {

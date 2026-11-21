@@ -5,7 +5,6 @@ const AUTHENTIK_TOKEN = process.env.AUTHENTIK_TOKEN!;
 const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID!;
 const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET!;
 const OIDC_REDIRECT_URI = process.env.OIDC_REDIRECT_URI!;        // https://app.example.com/api/auth/callback
-const OIDC_STATE_SECRET = process.env.OIDC_STATE_SECRET!;
 
 type CreateUserData = {
     username: string
@@ -149,7 +148,6 @@ export async function exchangeCode(code: string): Promise<TokenResponse | null> 
                 redirect_uri: OIDC_REDIRECT_URI
             })
             .timeout({ response: 5000, deadline: 10000 })
-        console.log(res.body);
         return res.body as TokenResponse
     } catch (err) {
         const e = err as { response?: { status: number; body?: { error?: string } } }

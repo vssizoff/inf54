@@ -16,6 +16,7 @@ import TermButton from "@/components/termui/TermButton.vue";
 import TermWindow from "@/components/termui/TermWindow.vue";
 import TermInput from "@/components/termui/TermInput.vue";
 import {useRouter} from "vue-router";
+import {submitLogin} from "@/api/authentik.ts";
 
 const router = useRouter();
 
@@ -65,7 +66,9 @@ async function submit(event: Event) {
     codeforcesHandle: codeforcesHandle.value
   });
   pending.value = false;
-  if (!response) await router.push("/me");
+  if (!response) {
+    await submitLogin(username.value, password.value);
+  }
 }
 
 async function submit0() {

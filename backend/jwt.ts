@@ -1,95 +1,54 @@
-import jwt from 'jsonwebtoken';
-import {db} from "./sql/index.sql.js";
-import fs from "node:fs";
+import {createRemoteJWKSet, jwtVerify} from 'jose'
+import {db} from "./sql/index.sql";
 
-const privateKey = fs.readFileSync("/keys/private.pem", {encoding: "utf8"});
-const publicKey = fs.readFileSync("/keys/public.pem", {encoding: "utf8"});
+const AUTHENTIK_URL = process.env.AUTHENTIK_URL!
+const JWKS_URL = `${AUTHENTIK_URL}/application/o/inf54/jwks/`
 
-export interface JwtRefreshPayload {
-    id: number;
-    app: string;
-    jti: number;
-    r: true;
-    iat: number;
-}
+const JWKS = createRemoteJWKSet(new URL(JWKS_URL))
 
 export interface JwtAccessPayload {
-    id: number;
-    app: string;
-    jti: number;
-    iat: number;
-    exp: number;
+    iss: "http://authentik:9000/application/o/inf54/",
+    sub: string,
+    aud: string,
+    exp: number,
+    iat: number,
+    auth_time: number,
+    acr: string,
+    jti: string,
+    email: string,
+    email_verified: boolean,
+    name: string,
+    given_name: string,
+    preferred_username: string,
+    nickname: string,
+    groups: Array<string>,
+    azp: string,
+    uid: string,
+    scope: string,
 }
 
-export interface JwtAppPayload {
-    app: string;
-}
-
-export function generateRefreshToken(id: number, jti: number, app: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        jwt.sign({
-            id, jti, app, r: true
-        }, privateKey, {
-            algorithm: 'ES256' as const
-        }, (err, token) => {
-            if (err) return reject(err);
-            else if (token) resolve(token);
-        });
-    });
-}
-
-export function generateAccessToken(id: number, jti: number, app: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        jwt.sign({
-            id, jti, app
-        }, privateKey, {
-            algorithm: 'ES256' as const,
-            expiresIn: '5m'
-        }, (err, token) => {
-            if (err) return reject(err);
-            else if (token) resolve(token);
-        });
-    });
-}
-
-export async function verifyRefreshToken(token: string | undefined | null): Promise<false | JwtRefreshPayload> {
+export async function verifyAccessToken(token: string | undefined | null): Promise<null | number> {
     if (token === undefined || token === null) {
-        return false;
+        return null;
     }
-    let data = await (new Promise<false | JwtAccessPayload | JwtRefreshPayload>(resolve => {
-        jwt.verify(token, publicKey, {algorithms: ['ES256']}, (err, data) => {
-            if (err) return resolve(false);
-            else if (typeof data === "object") resolve(data as unknown as JwtAccessPayload | JwtRefreshPayload);
-        });
-    }));
-    if (!data || !("id" in data) || !("r" in data) || (await db.selectFrom("sessions").where("id", '=', data.jti).execute()).length === 0) return false;
-    return data;
-}
-
-export async function verifyAccessToken(token: string | undefined | null): Promise<false | JwtAccessPayload> {
-    if (token === undefined || token === null) {
-        return false;
+    let payload: JwtAccessPayload;
+    try {
+        payload = (await jwtVerify(token, JWKS, {
+            issuer: `${AUTHENTIK_URL}/application/o/inf54/`,
+            audience: process.env.OIDC_CLIENT_ID,
+        })).payload as unknown as JwtAccessPayload;
     }
-    let data = await new Promise<false | JwtAccessPayload | JwtRefreshPayload>(resolve => {
-        jwt.verify(token, publicKey, {algorithms: ['ES256']}, (err, data) => {
-            if (err) return resolve(false);
-            else if (typeof data === "object") resolve(data as unknown as JwtAccessPayload | JwtRefreshPayload);
-        });
-    });
-    if (data === false || !("id" in data) || "r" in data) return false;
-    return data;
-}
-
-export async function verifyAppToken(token: string | undefined | null): Promise<false | JwtAppPayload> {
-    if (token === undefined || token === null) {
-        return false;
+    catch (error) {
+        console.error(error);
+        return null;
     }
-    let data = await new Promise<false | JwtAppPayload>(resolve => {
-        jwt.verify(token, process.env.JWT_SECRET ?? "", {algorithms: ['HS256']}, (err, data) => {
-            if (err) return resolve(false);
-            else if (typeof data === "object") resolve(data as unknown as JwtAppPayload);
-        });
-    });
-    if (data === false || "id" in data) return false;
-    return data;
+    let user = await db.selectFrom("users").where("authentikSub", '=', payload.sub).select("id").executeTakeFirst()
+    if (user === undefined) {
+        user = await db.updateTable("users").where("username", '=', payload.nickname)
+            .set({authentikSub: payload.sub}).returning("id").executeTakeFirst();
+        if (user === undefined) {
+            throw new Error(`User ${payload.nickname} (sub ${payload.sub}) not found`);
+        }
+    }
+    return user.id;
 }
