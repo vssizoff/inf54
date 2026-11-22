@@ -17,11 +17,7 @@ const wrong = ref(false);
 const pending = ref(false);
 
 onMounted(async () => {
-  if (await hasToken()) {
-    let to = router.currentRoute.value.query.next?.toString() ?? "/me";
-    if (to.startsWith("/")) await router.push(to);
-    else window.location.href = to;
-  }
+  if (await hasToken()) window.location.href = router.currentRoute.value.query.next?.toString() ?? "/me";
   await signInCleanup();
   await startLogin();
 });

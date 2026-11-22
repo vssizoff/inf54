@@ -54,7 +54,10 @@ export async function createAuthentikUser(data: CreateUserData): Promise<Authent
                 email: data.email,
                 name: data.name ?? '',
                 is_active: true,
-                attributes: data.attributes ?? {},
+                attributes: {
+                    ...(data.attributes ?? {}),
+                    email_verified: true
+                }
             })
         return res.body as AuthentikUser
     } catch (err) {
@@ -136,6 +139,13 @@ function mapError2(err: unknown): Error {
 
 /** Обмен authorization code на токены (вызывается из /api/auth/callback) */
 export async function exchangeCode(code: string): Promise<TokenResponse | null> {
+    console.log({
+        client_id: OIDC_CLIENT_ID,
+        client_secret: OIDC_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: OIDC_REDIRECT_URI
+    });
     try {
         const res = await superagent
             .post(`${AUTHENTIK_URL}/application/o/token/`)

@@ -338,6 +338,7 @@ router.post("/users/signout", {
     response.expressResponse.clearCookie("authentik_device");
     response.expressResponse.clearCookie("authentik_session");
     response.expressResponse.clearCookie("authentik_user_switching");
+    response.expressResponse.clearCookie("session");
     response.end();
 });
 
@@ -346,6 +347,7 @@ router.post("/users/signin/cleanup", {}, async (_, response) => {
     response.expressResponse.clearCookie("authentik_device");
     response.expressResponse.clearCookie("authentik_session");
     response.expressResponse.clearCookie("authentik_user_switching");
+    response.expressResponse.clearCookie("session");
     response.end();
 });
 

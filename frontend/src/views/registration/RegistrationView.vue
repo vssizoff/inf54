@@ -87,7 +87,7 @@ async function submit1() {
 }
 
 onMounted(async () => {
-  if (await hasToken()) await router.push("/me");
+  if (await hasToken()) window.location.href = router.currentRoute.value.query.next?.toString() ?? "/me";
   await signInCleanup();
 });
 
