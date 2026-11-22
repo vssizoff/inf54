@@ -308,14 +308,14 @@ router.get("/refresh-token", {
         response.end();
         return;
     }
-    if (data.refresh_token) {
-        response.expressResponse.cookie("refreshToken", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: "strict",
-            path: "/api/refresh-token"
-        });
-    }
+    // if (data.refresh_token) {
+    //     response.expressResponse.cookie("refreshToken", token, {
+    //         httpOnly: true,
+    //         secure: process.env.NODE_ENV === 'production',
+    //         sameSite: "strict",
+    //         path: "/api/refresh-token"
+    //     });
+    // }
     response.end(data.access_token);
 });
 

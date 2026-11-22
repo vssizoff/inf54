@@ -1,7 +1,6 @@
 import {config} from "@/config.ts";
 import axios from "axios";
 import {SERVER_URL} from "@/serverConfig.ts";
-import {useRouter} from "vue-router";
 
 const FLOW = "inf54-sign-in";
 const EXECUTOR = `/api/v3/flows/executor/${FLOW}/`;
@@ -48,6 +47,7 @@ async function initiateOidcAfterFlow() {
     authorizeUrl.searchParams.set('state', state)
     authorizeUrl.searchParams.set('nonce', nonce)
     authorizeUrl.searchParams.set('prompt', 'none') // Ключевой параметр!
+    authorizeUrl.searchParams.set('inf54', 'true')
 
     console.log(authorizeUrl.toString());
     window.location.href = authorizeUrl.toString();

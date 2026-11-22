@@ -87,7 +87,7 @@ async function submit1() {
 }
 
 onMounted(async () => {
-  if (await hasToken()) window.location.href = router.currentRoute.value.query.next?.toString() ?? "/me";
+  if (await hasToken()) return window.location.href = router.currentRoute.value.query.next?.toString() ?? "/me";
   await signInCleanup();
 });
 
@@ -112,7 +112,7 @@ watch(emailConfirm, () => {
         <p class="error" v-if="stage0Error === 2 || !isUniqueEmail">Email занят</p>
         <TermButton v-if="stage === 0" @click="submit0" :disabled="pending">Продолжить</TermButton>
         <TermButton v-if="stage !== 0" @click="stage = 0">Изменить</TermButton>
-        <p>Уже есть аккаунт? <RouterLink class="highlight" to="/sign-in">Вход</RouterLink></p>
+        <p>Уже есть аккаунт? <RouterLink class="highlight" :to="{path: '/sign-in', query: {next: router.currentRoute.value.query.next?.toString()}}">Вход</RouterLink></p>
       </TermWindow>
       <Transition>
         <TermWindow class="window" prompt="root@inf54:~# ./register.sh --mail-confirm" v-if="stage >= 1">

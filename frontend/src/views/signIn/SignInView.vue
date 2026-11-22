@@ -17,7 +17,10 @@ const wrong = ref(false);
 const pending = ref(false);
 
 onMounted(async () => {
-  if (await hasToken()) window.location.href = router.currentRoute.value.query.next?.toString() ?? "/me";
+  if (await hasToken()) {
+    console.log(router.currentRoute.value.query.next?.toString());
+    return window.location.href = router.currentRoute.value.query.next?.toString() ?? "/me";
+  }
   await signInCleanup();
   await startLogin();
 });
@@ -48,7 +51,7 @@ async function submit(event: Event) {
       <TermInput label="root@inf54:~# password:" mLabel="> password:" placeholder="Пароль" password noBreak v-model="password"/>
       <p class="error" v-if="wrong">Неверное имя пользователя или пароль</p>
       <TermButton @click="submit" :disabled="pending">Войти</TermButton>
-      <p>Нет аккаунта? <RouterLink class="highlight" to="/registration">Регистрация</RouterLink></p>
+      <p>Нет аккаунта? <RouterLink class="highlight" :to="{path: '/registration', query: {next: router.currentRoute.value.query.next?.toString()}}">Регистрация</RouterLink></p>
       <p><RouterLink class="highlight" to="/recovery">Забыли пароль?</RouterLink></p>
     </TermWindow>
     <ProgressIndicator v-if="pending"/>
